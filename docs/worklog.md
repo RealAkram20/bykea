@@ -683,3 +683,345 @@ emulator, none ANR'd (`am_anr`/`am_kill` for the app: none):
 **Verified:** the above, by screenshot and logcat events. **Not verified:** the
 real-device run (still owed); Accept / Decline retest on this fresh emulator
 was not repeated tonight.
+
+## 2026-09-03 — The offer must not be missable: full-screen intent (piece 6, first half)
+
+**Status:** complete on the emulator; real device still owed
+**Owns:** `android/app/src/main/java/com/kigatta/ingo/OfferMessagingService.java`,
+`android/app/src/main/java/com/kigatta/ingo/MainActivity.java`,
+`android/app/src/main/AndroidManifest.xml`, `docs/adr/0003-full-screen-offer.md`.
+**Shares:** docs/worklog.md — this section.
+
+**What this is.** Rio, watching the emulator: the Accept / Decline notification
+is "easy to miss". Measured tonight: the channel is importance 5, and SystemUI
+logged `onHeadsUpPinnedModeChanged` at 20:43:24.6 and again at 20:43:30.3 — the
+banner shows for ~5.7 s and then collapses into the shade, where the buttons hide
+behind the chevron. That is the whole of what MAX importance buys
+(`D:\OS\references\background-push.md`, rule 6). Rio: "check the OS, I have this
+already" — KangaruRide solved it (ADR-0049, `mobile/src/push/callNotification.ts`,
+`plugins/withLockScreenCallUi.js`): a **full-screen intent** on the notification,
+`showWhenLocked` + `turnScreenOn` on the activity, `USE_FULL_SCREEN_INTENT` in
+the manifest. Phone in use → a heads-up that sticks instead of fading; phone
+dark or locked → Android starts the activity over the keyguard.
+
+**What transfers and what is cheaper here.** Kangaru builds the notification in
+JavaScript, so its process must be alive (their foreground service). InGo builds
+it in `OfferMessagingService`, which Firebase starts for a data message even
+when the app is dead, so the full-screen intent costs no foreground service.
+Kangaru sets `showWhenLocked` in the manifest (whole app over the keyguard,
+always). Here it is set **dynamically in `MainActivity`, only for a launch whose
+intent carries `type=offer_ring`, and cleared in `onStop`** — a passer-by cannot
+drive a shift from a locked phone.
+
+**Not in this change:** looped ringtone, a native call-style card, Android 14+
+prompting the driver for the full-screen-intent special access (sideloaded and
+debug builds have it; a Play build of a non-calling app may not, and Android
+downgrades silently to the 5 s banner — the service now logs
+`canUseFullScreenIntent` on every ring so the downgrade is at least visible).
+
+**Built.** `OfferMessagingService.show()` adds `setFullScreenIntent(open, true)`
+and logs `canUseFullScreenIntent()` on every ring; `MainActivity` applies
+`setShowWhenLocked` / `setTurnScreenOn` only for an intent whose `type` is
+`offer_ring` and clears both in `onStop`; manifest declares
+`USE_FULL_SCREEN_INTENT`. ADR: `docs/adr/0003-full-screen-offer.md`. No JS
+change, no sender change. APK built (`assembleDebug`, exit 0) and installed.
+
+**Verified on the emulator (Android 15, debug build, `appops` = default, log
+says `fullScreenIntent granted`):**
+1. Phone unlocked on the launcher: offer sent 20:55:30 → SystemUI
+   `onHeadsUpPinnedModeChanged` once at 20:55:32.6 and **no unpin**; screenshots
+   at 2 s, 15 s, 40 s and 65 s all show the banner with Accept / Decline still
+   pinned. Before: pinned 5.7 s.
+2. Screen off + PIN (`mWakefulness=Asleep`, `isKeyguardShowing=true`): offer sent
+   20:57:30 → 1.5 s later `START … OFFER_0_…` → `mWakefulness=Awake`,
+   `topResumedActivity=MainActivity` with the keyguard still up → JS `offer
+   tapped` → `routing to tapped offer`; screenshot at 8 s shows the app over the
+   lock screen with the in-app offer banner. The shade notification is posted
+   alongside (seen on the lock screen afterwards).
+3. Exemption released: after that, sleep → wake with no offer shows the normal
+   lock screen (`isKeyguardShowing=true`, app not drawn). PIN cleared after.
+4. `--stop` still withdraws (`withdrawn tag=…` 20:58:20).
+
+**Not verified:** a real handset (Android 14+ special-access state on a Play
+build; OEM skins); a killed process + FSI (the WebView cold start over the
+keyguard); a real order rather than the test payload (the in-app card, not
+just the banner); the Accept button pressed from the pinned heads-up.
+
+**Deliberately not built:** looped ringtone; native call-style card; a Profile
+row that opens Android's full-screen-intent setting on 14+ (Kangaru has one,
+`fullScreenIntent.ts`, worth porting before a Play release).
+
+**Two harness lessons.** (1) After `emu kill` + cold boot, FCM accepted a
+message (`projects/ingo-92d5f/messages/…`) that never arrived: Google's push
+backend still held the dead instance's connection. `cmd connectivity
+airplane-mode enable` / `disable` forced a reconnect and the next send landed in
+2 s. Do this once after every emulator restart before judging delivery.
+(2) The device token can be asked of the running WebView over CDP
+(`adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`, then
+`Runtime.evaluate` on `Capacitor.Plugins.PushNotifications.register()`) —
+script in the session scratchpad, ten lines, no app change needed.
+
+**Screen wake, hardened and proven in every process state (21:01–21:03).** Rio
+asked to focus on "the screen wakes when locked and sleeping". Added the floor
+Kangaru has (`lightUpScreen`): `OfferMessagingService` takes a 15 s
+`SCREEN_BRIGHT_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP` when the screen is not
+interactive (manifest `WAKE_LOCK`), so even a handset that downgrades the
+full-screen intent gets a lit lock screen with the buttons on it. Rebuilt,
+installed, then the matrix, each with PIN set and `mWakefulness=Asleep`,
+`isKeyguardShowing=true` before the send:
+
+| Case | Wake | Over keyguard | JS routed | Time to activity start |
+|---|---|---|---|---|
+| A. app was in the foreground when locked | Awake | `topResumedActivity=MainActivity` | yes | 1.6 s |
+| B. process killed (`run-as kill -9`, `pidof` empty) | Awake | new pid 7334, activity started, WebView cold-started | yes, at +9.5 s | 2.9 s |
+| C. Doze (`deviceidle force-idle`, state IDLE) | Awake | `topResumedActivity=MainActivity` | yes | 1.5 s |
+
+Each log shows `fullScreenIntent granted` then `screen was dark; lit for
+15000 ms`. Doze did not delay the high-priority data message (1 s to service).
+Harness: `dumpsys battery unplug` is required before `force-idle`; `unforce` +
+`battery reset` after. Real handset still owed (OEM battery managers and the
+Android 14+ special access are the two things the emulator cannot show).
+
+## 2026-09-03 — Full-screen offer in the app; the in-app banner is dropped
+
+**Status:** complete on the emulator; real device still owed
+**Owns:** `src/pages/DriverOfferPage.js`, `src/pages/driverOfferPage.css`,
+`src/components/driver/useOfferActions.js`, `src/components/driver/OfferPins.js`.
+**Shares:** `src/components/driver/DriverOffersProvider.js` — tap routing → offer page,
+native ring → offer page, toast CTA → offer page, shared offer matcher;
+`src/pages/DriverHomePage.js` — handlers/state replaced by `useOfferActions`, pins
+imported; `src/lib/driverOfferRing.js` — no DOM banner in the native WebView;
+`src/App.js` — one route; `src/components/driver/DriverLayout.js` — hide bottom nav
+on the offer route; `src/index.css` — semantic tokens added.
+
+**What this is.** Rio: the in-app "New InGo delivery / Open request" banner is to
+be dropped ("drop this"); the request inside the app becomes a whole screen with
+two buttons, Accept and Decline, "clean and professional". The OS notification
+with Accept / Decline (ADR 0002/0003) stays the out-of-app surface. Any tap on it
+(body, full-screen intent, or a button while the offer loads) lands on the new
+screen; a new ring while the app is open opens it too (native only; the web
+driver keeps the toast). Accept / Decline / bid logic is extracted from
+`DriverHomePage` into one hook so there is still one accept path.
+
+**Deliberately kept:** counter-offer (bid) as a tertiary text action on bid-capable
+tables, so no existing capability is silently removed. Flagged as a fork below.
+
+**Built.** `DriverOfferPage` at `/driver/offer/:offerKey` (under `DriverLayout`,
+bottom nav hidden there): kind badge, ref, close; countdown + bar (the 120 s
+re-ring cycle, "Time is up" at 0); pickup / drop-off with the shared pins;
+distance line (deduplicated — `dist` already carries the ETA for deliveries);
+package; payment block with the wallet / cash note; customer offer + minimum;
+"Your offer" once a bid is in; Decline (outlined, left) and Accept $X (filled,
+right, 56 px); "Counter-offer a higher price" as a text action on bid tables
+with the inline form; states: fetching (30 s grace after mount for a cold-start
+poll), no longer available / offline, Declined. Tokens only
+(`src/index.css` gained the semantic set). `useOfferActions` holds
+accept / decline / bid, moved out of `DriverHomePage`, which now uses it too;
+`offerPresentation.js` holds `kindLabel`, `BID_TABLES` and the pins. Provider:
+`offerPath()` / `findOfferForKey()` exported; any tap naming an offer routes to
+the screen; a ring in the native app navigates there (web keeps the toast, whose
+CTA now opens the screen); the parked notification action uses the same
+matcher. `driverOfferRing.js` no longer injects the DOM banner in the native
+WebView. Bundle `main.720c4857.js`, APK rebuilt and installed.
+
+**Verified on the emulator, all against real rows in the throwaway project
+(`scratchpad/make-order.js` clones order `ecd3c8f5…` as a fresh `placed` order
+and can invoke the deployed sender the way the customer app does):**
+1. Order `a8a7a68f…` inserted → poll → native navigate →
+   `/driver/offer/customer_delivery_orders%3Aa8a7…` → screen populated
+   (screenshot sent to Rio).
+2. Order `43f00096…` → Decline pressed at the button's DOM centre (287,2319) →
+   `[offer] decline … result {"ok":true}` → screen "Declined" → DB
+   `rejected_driver_ids=[12d82ffc…]`.
+3. Order `63d9ce9b…` + sender (`sent:1`) → `[driverPush] payload received` →
+   heads-up pinned → screen open → Accept pressed → `accept result
+   {"ok":true,"pending":false,"fare":4.5}` → DB `assigned / matched` → sender
+   `offer_stop` → `withdrawn` → app on `/driver/active-delivery`.
+4. Order `d3285863…`, app backgrounded → ring → the notification's body intent
+   (`am start -a com.kigatta.ingo.OFFER_0_<tag> … --es type offer_ring`) →
+   `[DriverOffers] routing to tapped offer /driver/offer/…` → app in front on
+   the screen → Decline → "Declined".
+5. No in-app banner appeared in any run.
+
+**Not verified:** the web (browser) driver: toast → screen; the counter-offer
+form on the screen (logic unchanged, moved); a real handset; the full-screen
+intent launching *into* the offer screen on a locked phone (the FSI intent
+carries the offer key, so it takes path 4, but not re-run tonight).
+
+**One unexplained event, logged for honesty.** On order `a8a7a68f…` the first
+Decline attempt (a tap at (286,2392), which the DOM later confirmed is inside
+Decline) produced an *accept*: a bid at $4.50 `accepted` at 18:29:53Z, order
+assigned, app on `/driver/home`, no page log (the hook had no logging then).
+Not reproduced in three later runs, and the hook now logs every accept and
+decline with its result, so a recurrence will name itself. Possible cause: the
+approval gate re-checks on every route change and replaces the outlet with
+"Checking driver account…" (seen in a screenshot 8 s after an insert), so a tap
+can land on whichever screen mounts next. That gate behaviour is pre-existing
+and worth its own look: every navigation blanks the screen until a DB call
+returns.
+
+**Harness notes.** `uiautomator dump` segfaults intermittently on this
+emulator and leaves a stale `/sdcard/ui.xml`: never tap on bounds from a dump
+you did not just verify. Locate web buttons through CDP instead
+(`scratchpad/cdp-eval.js`: `getBoundingClientRect()` × `devicePixelRatio`).
+Git Bash mangles `/driver/home` in `adb shell am start --es link /driver/home`;
+set `MSYS_NO_PATHCONV=1`. Emulator `screen_off_timeout` was raised to 600000
+during the tests and restored to 30000 after.
+
+**Fork flagged, decided by me:** the counter-offer stays as a tertiary text
+action on the screen rather than being removed. Rio asked for two buttons; the
+two buttons are Accept and Decline, and the bid is not a button. Say the word
+and it goes.
+
+**The "That request is no longer available" dialog Rio saw (22:00).** Cause: a
+decline (or accept) on the new screen ended the offer locally but left the OS
+notification in the shade with live Accept / Decline; pressing it later parks
+an action for an offer the poll no longer returns → that dialog. **Fixed:**
+`removeOfferLocally` now withdraws the OS notification for the key
+(`ingo-offer-<table:id>`), so every path that ends an offer (screen, home card,
+notification button, bid claimed) clears the shade. Copy reworded: "no longer
+open — already answered, taken by another driver, or timed out". Verified on
+order `51d32955…`: notification body intent → screen → Decline → `withdraw …
+delivered:1, matching:1` → shade empty.
+
+**Two things learned on the way, both pre-existing.** (1) The provider
+auto-opens an accepted job (`fetchBidAcceptedJobsForDriver` → navigate to
+`/driver/active-delivery`) on a poll after mount; tonight it moved the app off a
+fresh offer screen onto the previous accepted delivery, which looked like an
+accept and was not (order stayed `placed`). (2) `/driver/active-delivery` is
+outside `DriverLayout`, so the offers provider (the tap sink) is not mounted
+there: a notification tapped while the driver is on that page does nothing
+until they return to a `/driver/*` tab (the bootstrap parks it; delivered on
+the next mount). A driver mid-delivery cannot answer a second offer from the
+notification. Worth a decision, not a silent fix.
+
+## 2026-09-03 — Real GPS anywhere; driver-side proximity without a schema change
+
+**Status:** complete on the emulator; sender half unexercised (no Google key here)
+**Owns:** `src/lib/offerProximity.js`, `src/lib/offerProximity.test.js`.
+**Shares:** `src/lib/googleMapsConfig.js` — `isAcceptableDeviceFix` / `trustedMapCenter`
+trust any reliable fix; `src/hooks/useLiveLocation.js` — warning text; `src/pages/DriverOfferPage.js`
++ `src/pages/DriverHomePage.js` — distance line + sort; `supabase/functions/driver-offer-push/index.ts`
+— geocode pickup at ring time when `GOOGLE_MAPS_API_KEY` is set, then the existing radius filter.
+
+**Decisions (Rio, 22:10):** (1) trust the device's real fix everywhere; Harare is
+only the no-fix fallback — the Zimbabwe box that rejected every fix outside it
+is what showed Rio, in Uganda, a map of Harare and published his driver row
+with no coordinates at all. (2) Proximity is driver-side and needs **no
+migration**: the pickup address is geocoded at use (the app through the
+existing `places-geocode` edge function, the sender through Google Geocoding)
+and cached; distance to the driver's live fix is computed with the existing
+haversine. No table gains a column. Degrades honestly: no coordinates → no
+distance shown and no filtering, never a made-up number.
+
+**Not verifiable here:** live geocoding. No Google Maps key exists in this
+environment and `places-geocode` is not deployed on the throwaway project
+(non-2xx). The pure logic is unit-tested; the wiring is exercised with the
+geocoder failing, which must render "—" and keep every driver in the ring.
+
+**Built.**
+- `googleMapsConfig.isAcceptableDeviceFix` = any reliable fix; `trustedMapCenter`
+  follows it. `SERVICE_AREA_BOUNDS` / `isInServiceArea` remain for callers that
+  want the box. `useLiveLocation` exports `readLastDeviceFix()`.
+- **The GPS watch and the 15 s publish loop moved from `DriverHomePage` into
+  `DriverOffersProvider`** (exposed as `live` in the context; Home and the offer
+  screen consume it). Home's unmount cleanup used to publish `is_online=false`,
+  so any other tab — and now every ring, which opens the offer screen — took
+  the driver out of the dispatch pool. Found by reading the driver row after a
+  ring: `is_online:false`, position stale. The offline publish now happens only
+  on the toggle or on leaving the driver area.
+- `src/lib/offerProximity.js`: geocode-at-use with a 7-day positive / 10-min
+  negative cache in `localStorage` (`ingo_pickup_geo_v1`, cap 200), haversine to
+  the driver's fix, `formatDistanceKm`, `sortOffersByDistance`,
+  `useOfferDistances`. 8 unit tests (`offerProximity.test.js`) pass. Offer
+  screen: "Pickup is about X from you" / "— Distance from you unknown: no GPS
+  fix yet" / "…: the pickup address could not be located". Home: same line on
+  the card, list sorted nearest first, unknowns last.
+- `reverseGeocode.js`: `ADDRESS_COUNTRY_CODE` now `REACT_APP_ADDRESS_COUNTRY`
+  (default `zw`); both country filters key off it; **the Nominatim forward
+  fallback never returned a point** because it filtered on `hit.address` without
+  requesting `addressdetails=1` — fixed.
+- Sender: `geocodePickup()` (Google Geocoding, needs `GOOGLE_MAPS_API_KEY` as a
+  function secret) feeds the existing `NEARBY_RADIUS_KM = 20` filter; response
+  carries `proximity: { source: row|geocoded|none, reason }` and
+  `reason: no_nearby_drivers` when the radius empties the list. No key → today's
+  behaviour, logged.
+
+**Verified on the emulator (`adb emu geo fix 32.5825 0.3476`, Kampala):**
+- driver row `driver_live_lat 0.3476 / lng 32.5825, is_online true` 30 s after
+  launch on Home; still updating on the Orders tab (+20 s) and on the offer
+  screen (+15 s). Before the change the same fix was rejected ("outside Zimbabwe
+  service area") and never published.
+- ring → offer screen → "Pickup is about 2028 km from you" (Harare CBD from
+  Kampala; the honest number), resolved through the Nominatim fallback since
+  `places-geocode` is not deployed on the throwaway (CORS/non-2xx in the log);
+  cached as `{lat:-17.8257, lng:31.051}`. Screenshot sent to Rio.
+
+**Not verified:** Google paths (edge `places-geocode`, direct Geocoding API,
+the sender's `geocodePickup`) — no key in this environment; the Home card sort
+with several offers at once; a real handset.
+
+**Harness notes.** The emulator's GPS fix is only applied while some app is
+listening and the screen is on — `emu geo fix` before the app is up does
+nothing visible. `adb shell settings put system screen_off_timeout 600000` for
+the session, restored to 30000 after. The provider auto-opens an accepted
+delivery on every fresh mount until the driver "leaves" it (sessionStorage), so
+close out test orders in the DB (`status=delivered`) between runs or every
+launch lands on `/driver/active-delivery`. Test orders from tonight are closed
+(delivered or cancelled with `cancel_reason='test cleanup'`).
+
+**Decisions to record (ADR 0004).** Trust the device fix anywhere; Harare only
+as the no-fix fallback; the country bias for address search is per environment.
+Proximity is computed at use from text addresses; no coordinates are persisted.
+
+## 2026-09-04 — Driver flow read; the store-build source question reopened
+
+**Status:** in progress
+**Owns:** nothing yet — documentation only.
+**Shares:** `CLAUDE.md` — exact edit: the remotes bullet and the `android/` bullet.
+
+**What this is.** Rio asked for a read of the driver side: the flow, the screen
+transitions, and the offer logic, wanting "something simple clean". No code was
+changed. The read is published as a diagram page (today's flow, the three
+interrupts, the proposal) and is summarised in the five findings below. Then Rio
+said **"I have access to it"** about where the store builds are produced, which
+contradicts a standing assumption in this file and in
+`D:\OS\ingo-os\Next Actions.md`.
+
+**The read, in five findings.**
+1. The job after Accept exists only in `location.state.order`; every chain screen
+   spreads it over `DEFAULT_DRIVER_ORDER`, so a reload, a killed process or a
+   notification cold start renders the fixture — order `ING-00881`, "Sara Khan",
+   $3.20 — as if it were a real job. Only `DriverCollectPaymentPage` redirects.
+2. Three uncoordinated things navigate for the driver: the re-ring
+   (`DriverOffersProvider.js:345`, every 120 s for up to 30 min, first offer
+   only), the bid-accepted auto-open (`:437`), and the approval gate blanking the
+   outlet on every route change (`DriverApprovalGate.js:39`). This is the
+   mechanism behind the unexplained accept logged on 2026-09-03.
+3. Four surfaces answer one offer, in two vocabularies: home says
+   "Offer / Bid higher / Reject", the screen says "Accept / Counter-offer /
+   Decline". The home card is ~180 lines duplicating the screen.
+4. `/driver/delivery-status` is unreachable — nothing navigates to it. And
+   `DriverPickupConfirmPage` duplicates `DriverNavigationPage.onCustomerPickedUp`.
+5. The six chain routes are siblings of `DriverLayout`, not children, so the
+   offers provider is unmounted mid-job and a tapped notification does nothing.
+
+**What I checked about the store-build source, and did not find.**
+`KIGATTA-INVESTMENTS` exposes exactly one repo to Rio's token, `bykea`. The third
+remote on this clone, `ingo-app` → `RealAkram20/Ingo-app`, is a **public mirror of
+this same codebase**, two commits behind `HEAD` — not a separate app source.
+`d:\xampp\htdocs\ingo-release` is the Laravel fleet product, not this. So nothing
+on this machine or in either GitHub org locates a store-build source.
+
+**Verified:** the flow read above, from source. The three remotes and the
+mirror's contents, from `gh` and `git diff`.
+**Not verified:** where the store builds are actually produced. Rio asserted
+access on 2026-09-04; the location is still unrecorded, and "access" may mean the
+source, the Play/App Store console, or the builder — these need different work.
+
+**Deliberately not built:** all five fixes. Two decisions are open with Rio —
+(A) resume bar vs. auto-open on a bid acceptance, (B) whether the home offer card
+goes entirely or becomes a read-only row.
+
+**For whoever is next:** do not re-run the store-source search; it is recorded
+above. Ask Rio for the location instead.

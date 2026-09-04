@@ -55,10 +55,21 @@ history. Do not re-derive from the code what the wiki already records.
 **The trigger is the second time.** First occurrence is an incident. Second is
 a pattern, and a pattern belongs in a standard.
 
+## `AGENTS.md` is the shared handover
+
+`AGENTS.md` at the repo root is the **self-contained** brief for anyone else's
+developer and their agents — it assumes no access to `D:\OS`, this file, or any
+chat history. This file is Rio's; that one is everybody's. A rule every future
+agent needs goes in `AGENTS.md`, not here.
+
 ## Repo facts worth not rediscovering
 
 - **Upstream is the client's.** `origin` = `RealAkram20/bykea` (Rio's fork),
-  `upstream` = `KIGATTA-INVESTMENTS/bykea`. Branch `master`.
+  `upstream` = `KIGATTA-INVESTMENTS/bykea`. Branch `master`. A third remote,
+  `ingo-app` = `RealAkram20/Ingo-app`, is Rio's own **public** mirror of this
+  same codebase — it carries the live anon key and the admin password, and
+  whether it stays public is an open decision (`D:\OS\ingo-os\Next Actions.md`,
+  item 4). It is not a second product; do not mistake it for the store app.
 - **CRA 5 + React 19**, no TypeScript. `react-scripts@5.0.1` is deprecated
   upstream — that is the source of most `npm audit` noise. Those are build-chain
   transitives, not runtime; `npm audit fix --force` risks the build for no gain.
@@ -75,6 +86,14 @@ a pattern, and a pattern belongs in a standard.
   stores were built elsewhere and **their source is not in this repository.**
   Anything changed under `android/` must be re-applied wherever the store builds
   are actually produced, or it ships to nobody.
+  **2026-09-04, Rio: "I have access to it."** So re-applying the `android/` work
+  (ADR 0002 / 0003) is Rio's to do, not a handover to KIGATTA's developer as
+  previously recorded. **The location is still not written down anywhere**, and a
+  search found none: `KIGATTA-INVESTMENTS` exposes only `bykea`, `Ingo-app` is a
+  mirror of this repo, `d:\xampp\htdocs\ingo-release` is the Laravel product.
+  Record the location here before the next `android/` change, and note which kind
+  of access it is — the source, the Play / App Store console, or the builder —
+  because each implies different work.
 - **Driver push: the channel id is duplicated and unchecked.**
   `DRIVER_OFFER_CHANNEL_ID` in `src/lib/driverPush.js` must equal
   `android.notification.channel_id` in
