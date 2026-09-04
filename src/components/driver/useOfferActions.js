@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDriverOffers } from './DriverOffersProvider';
+import { jobPath } from './useDriverJob';
 import {
   driverAcceptOffer,
   driverRejectOffer,
@@ -79,7 +80,8 @@ export function useOfferActions() {
       removeOfferLocally(offer.table, offer.id);
       const rec = await fetchRecentForDriver(supabase, driverId);
       setRecent(rec);
-      navigate('/driver/active-delivery', { state: { order: offerToActiveDeliveryOrder(offer) } });
+      const job = offerToActiveDeliveryOrder(offer);
+      navigate(jobPath('active-delivery', job), { state: { order: job } });
       return res;
     },
     [busyKey, driverId, driverVehicleType, navigate, refreshOffers, removeOfferLocally, setRecent, setTakenNotice],
@@ -137,7 +139,8 @@ export function useOfferActions() {
         removeOfferLocally(offer.table, offer.id);
         const rec = await fetchRecentForDriver(supabase, driverId);
         setRecent(rec);
-        navigate('/driver/active-delivery', { state: { order: offerToActiveDeliveryOrder(offer) } });
+        const job = offerToActiveDeliveryOrder(offer);
+        navigate(jobPath('active-delivery', job), { state: { order: job } });
         return res;
       }
       setBidModeKey('');

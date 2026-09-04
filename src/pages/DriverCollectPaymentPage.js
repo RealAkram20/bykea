@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
+import { jobPath } from '../components/driver/useDriverJob';
 import { formatGBP } from '../lib/currency';
 import { driverOrderNeedsCashCollectionScreen } from '../lib/driverIncomingBookings';
 import './chatNotifyRating.css';
@@ -9,10 +9,10 @@ export default function DriverCollectPaymentPage() {
   const navigate = useNavigate();
   const { state } = useLocation();
   const rawOrder = state?.order;
-  const o = useMemo(
-    () => (rawOrder ? { ...DEFAULT_DRIVER_ORDER, ...rawOrder } : null),
-    [rawOrder],
-  );
+  // Terminal step: the job is already completed, so it will not come back from
+  // an active-jobs fetch. Router state is the source, and there is no fixture to
+  // fall back to — no order means go home, which is what the effect below does.
+  const o = useMemo(() => (rawOrder ? { ...rawOrder } : null), [rawOrder]);
   const needsCash = Boolean(o && driverOrderNeedsCashCollectionScreen(o));
 
   useEffect(() => {
@@ -21,13 +21,13 @@ export default function DriverCollectPaymentPage() {
       return;
     }
     if (!needsCash) {
-      navigate('/driver/rate-customer', { replace: true, state: { order: o } });
+      navigate(jobPath('rate-customer', o), { replace: true, state: { order: o } });
     }
   }, [o, needsCash, navigate]);
 
   const onCollected = () => {
     if (!o) return;
-    navigate('/driver/rate-customer', { replace: true, state: { order: o } });
+    navigate(jobPath('rate-customer', o), { replace: true, state: { order: o } });
   };
 
   if (!o || !needsCash) {

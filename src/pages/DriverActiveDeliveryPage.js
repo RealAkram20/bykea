@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import GoogleMapEmbed from '../components/GoogleMapEmbed';
 import LiveTrackingRouteMap from '../components/LiveTrackingRouteMap';
 import PackagePhotoCapture from '../components/PackagePhotoCapture';
-import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
+import DriverJobState from '../components/driver/DriverJobState';
+import { jobPath, useDriverJob } from '../components/driver/useDriverJob';
 import { useLiveLocation } from '../hooks/useLiveLocation';
 import { isPackagePhotoSrc, persistParcelPackagePhoto } from '../lib/packagePhoto';
 import { formatGBP } from '../lib/currency';
@@ -59,12 +60,11 @@ const fmt$ = (n) => formatGBP(n);
 
 export default function DriverActiveDeliveryPage() {
   const navigate = useNavigate();
-  const { state } = useLocation();
   const live = useLiveLocation({ mapThrottleMs: 8000 });
-  const o = useMemo(
-    () => (state && state.order ? { ...DEFAULT_DRIVER_ORDER, ...state.order } : { ...DEFAULT_DRIVER_ORDER }),
-    [state],
-  );
+  const { order, status: jobStatus, error: jobError, reload: reloadJob } = useDriverJob();
+  // Every hook below must still run while the job resolves, so `o` is an empty
+  // object rather than a fixture. The screen itself is gated at the return.
+  const o = useMemo(() => order || {}, [order]);
   const [customerName, setCustomerName] = useState(o.customerName);
   const [customerPhone, setCustomerPhone] = useState(o.customerPhone);
   const [pickupGeo, setPickupGeo] = useState(null);
@@ -80,7 +80,7 @@ export default function DriverActiveDeliveryPage() {
   const [jsMapFailed, setJsMapFailed] = useState(() => !getGoogleMapsApiKey());
   const jsMapAvailable = !jsMapFailed;
 
-  const pickup = String(o.from || '').trim() || 'Stratford, London E15';
+  const pickup = String(o.from || '').trim();
   const dropoff = String(o.to || '').trim() || pickup;
 
   useEffect(() => {
@@ -207,7 +207,7 @@ export default function DriverActiveDeliveryPage() {
         .then(() => {})
         .catch(() => {});
     }
-    navigate('/driver/navigation', {
+    navigate(jobPath('navigation', o), {
       state: {
         order: {
           ...o,
@@ -235,6 +235,10 @@ export default function DriverActiveDeliveryPage() {
       }),
     [pickup, dropoff, pickupGeo, dropoffGeo],
   );
+
+  if (jobStatus !== 'ready') {
+    return <DriverJobState status={jobStatus} error={jobError} label="delivery" onRetry={reloadJob} />;
+  }
 
   return (
     <div className="da-page dd" role="main" aria-label="Active delivery">
@@ -465,7 +469,7 @@ export default function DriverActiveDeliveryPage() {
               type="button"
               className="da-ia"
               onClick={() =>
-                navigate('/driver/confirm-pickup', {
+                navigate(jobPath('confirm-pickup', o), {
                   state: {
                     order: {
                       ...o,

@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import DeliveryPin from '../components/DeliveryPin';
 import PackagePhotoCapture from '../components/PackagePhotoCapture';
-import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
+import DriverJobState from '../components/driver/DriverJobState';
+import { jobPath, useDriverJob } from '../components/driver/useDriverJob';
 import { formatGBP } from '../lib/currency';
 import './driverDelivery.css';
 
@@ -32,11 +33,8 @@ const fmt$ = (n) => formatGBP(n);
 
 export default function DriverDeliveryStatusPage() {
   const navigate = useNavigate();
-  const { state } = useLocation();
-  const o = useMemo(
-    () => (state?.order ? { ...DEFAULT_DRIVER_ORDER, ...state.order } : { ...DEFAULT_DRIVER_ORDER }),
-    [state],
-  );
+  const { order, status: jobStatus, error: jobError, reload: reloadJob } = useDriverJob();
+  const o = useMemo(() => order || {}, [order]);
   const activeStep = 4;
   const [showModal, setShowModal] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -63,6 +61,10 @@ export default function DriverDeliveryStatusPage() {
         </Link>
       </div>
     );
+  }
+
+  if (jobStatus !== 'ready') {
+    return <DriverJobState status={jobStatus} error={jobError} label="delivery" onRetry={reloadJob} />;
   }
 
   return (
@@ -189,7 +191,7 @@ export default function DriverDeliveryStatusPage() {
           type="button"
           className="ds-bt2 ds-bt2--g2"
           onClick={() =>
-            navigate('/driver/navigation', {
+            navigate(jobPath('navigation', o), {
               state: {
                 order: o,
                 pickup: o.from,

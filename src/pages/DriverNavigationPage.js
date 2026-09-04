@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import GoogleMapEmbed from '../components/GoogleMapEmbed';
 import LiveTrackingRouteMap from '../components/LiveTrackingRouteMap';
 import PackagePhotoCapture from '../components/PackagePhotoCapture';
-import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
+import DriverJobState from '../components/driver/DriverJobState';
+import { jobPath, useDriverJob } from '../components/driver/useDriverJob';
 import { useLiveLocation } from '../hooks/useLiveLocation';
 import { useThrottledMapEmbedSrc } from '../hooks/useThrottledMapEmbedSrc';
 import DeliveryPin from '../components/DeliveryPin';
@@ -52,10 +53,9 @@ export default function DriverNavigationPage() {
   const [lostJob, setLostJob] = useState('');
   const [jsMapFailed, setJsMapFailed] = useState(() => !getGoogleMapsApiKey());
   const jsMapAvailable = !jsMapFailed;
-  const o = useMemo(
-    () => (state?.order ? { ...DEFAULT_DRIVER_ORDER, ...state.order } : { ...DEFAULT_DRIVER_ORDER }),
-    [state],
-  );
+  const { order, status: jobStatus, error: jobError, reload: reloadJob } = useDriverJob();
+  // Hooks below must keep running while the job resolves; the render is gated.
+  const o = useMemo(() => order || {}, [order]);
   const [driverPhoto, setDriverPhoto] = useState(() =>
     isPackagePhotoSrc(o.driverPackagePhotoDataUrl) ? o.driverPackagePhotoDataUrl : '',
   );
@@ -265,9 +265,9 @@ export default function DriverNavigationPage() {
       setDeliveryCodeInput('');
       setEnding(false);
       if (driverOrderNeedsCashCollectionScreen(o)) {
-        navigate('/driver/collect-payment', { replace: true, state: { order: o } });
+        navigate(jobPath('collect-payment', o), { replace: true, state: { order: o } });
       } else {
-        navigate('/driver/rate-customer', { replace: true, state: { order: o } });
+        navigate(jobPath('rate-customer', o), { replace: true, state: { order: o } });
       }
     },
     [navigate, o],
@@ -319,7 +319,7 @@ export default function DriverNavigationPage() {
         .eq('id', id);
       if (!error) notifyShopOrderPickedUp(supabase, id);
     }
-    navigate('/driver/navigation', {
+    navigate(jobPath('navigation', o), {
       replace: true,
       state: {
         order: { ...o, driverPackagePhotoDataUrl: driverPhoto || o.driverPackagePhotoDataUrl },
@@ -399,6 +399,10 @@ export default function DriverNavigationPage() {
     },
     [cancelBusy, cancelNote, cancelReasonId, navigate, o.bookingTable, o.supabaseOrderId],
   );
+
+  if (jobStatus !== 'ready') {
+    return <DriverJobState status={jobStatus} error={jobError} label="trip" onRetry={reloadJob} />;
+  }
 
   return (
     <div className="nav-page" role="application" aria-label="Navigation">

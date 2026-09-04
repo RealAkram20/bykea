@@ -224,7 +224,7 @@ function App() {
             <Route path="/driver/login" element={<DriverLoginPage />} />
             <Route path="/driver/register" element={<DriverRegisterPage />} />
             <Route
-              path="/driver/active-delivery"
+              path="/driver/active-delivery/:jobKey?"
               element={
                 <DriverAuthGate>
                   <DriverActiveDeliveryPage />
@@ -232,7 +232,7 @@ function App() {
               }
             />
             <Route
-              path="/driver/confirm-pickup"
+              path="/driver/confirm-pickup/:jobKey?"
               element={
                 <DriverAuthGate>
                   <DriverPickupConfirmPage />
@@ -240,7 +240,7 @@ function App() {
               }
             />
             <Route
-              path="/driver/navigation"
+              path="/driver/navigation/:jobKey?"
               element={
                 <DriverAuthGate>
                   <DriverNavigationPage />
@@ -248,7 +248,7 @@ function App() {
               }
             />
             <Route
-              path="/driver/delivery-status"
+              path="/driver/delivery-status/:jobKey?"
               element={
                 <DriverAuthGate>
                   <DriverDeliveryStatusPage />
@@ -256,7 +256,7 @@ function App() {
               }
             />
             <Route
-              path="/driver/collect-payment"
+              path="/driver/collect-payment/:jobKey?"
               element={
                 <DriverAuthGate>
                   <DriverCollectPaymentPage />
@@ -264,7 +264,7 @@ function App() {
               }
             />
             <Route
-              path="/driver/rate-customer"
+              path="/driver/rate-customer/:jobKey?"
               element={
                 <DriverAuthGate>
                   <DriverRateCustomerPage />

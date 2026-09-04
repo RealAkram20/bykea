@@ -1050,3 +1050,76 @@ so. The client's developer has not responded yet.
 **For whoever is next:** do not push `master` to `origin` and then open a second
 PR — it would re-introduce `CLAUDE.md` to the client. Use `kigatta-handover`,
 rebuilt the same way, if more work needs handing over.
+
+## 2026-09-04 — Finding 1: the job gets an address, and the fixture stops being a fallback
+
+**Status:** built and compiling; **not run**
+**Owns:** `src/components/driver/useDriverJob.js` (new).
+**Shares:** `src/App.js` — the six chain routes gain an optional `:jobKey`;
+`src/pages/DriverActiveDeliveryPage.js`, `DriverNavigationPage.js`,
+`DriverPickupConfirmPage.js`, `DriverDeliveryStatusPage.js`,
+`DriverCollectPaymentPage.js`, `DriverRateCustomerPage.js`,
+`DriverOrdersPage.js` — order resolution swapped to the hook;
+`src/components/driver/useOfferActions.js` + `DriverOffersProvider.js` — the
+four navigations into the chain carry the key; `src/data/driverOrderDefaults.js`
+— the fixture stops being a runtime fallback.
+
+**What this is.** After Accept the job is carried only in `location.state.order`,
+and every chain screen does `{ ...DEFAULT_DRIVER_ORDER, ...state.order }`. With a
+real order nothing leaks — `offerToActiveDeliveryOrder` sets all fourteen fixture
+keys explicitly. But with **no** state at all (reload, killed process, cold start
+from a notification, back button, deep link) the screens render the fixture as
+though it were work: `ING-00881`, "Green Valley Mart, Stratford, London E15",
+"Sara Khan", `+44 7700 900123`, $3.20. `DriverActiveDeliveryPage` has a second
+copy of the same failure at line 83, defaulting pickup to
+`'Stratford, London E15'`. Only `DriverCollectPaymentPage` redirects instead.
+
+**The fix.** The job gets an address. Routes take an optional `:jobKey` of
+`table:id` — the same encoding `/driver/offer/:offerKey` already uses, so there
+is one convention, not two. `useDriverJob` resolves in order: router state when
+present (the fast path, and the only one carrying in-flight edits like the
+package photo), else a fetch by key through the existing
+`fetchActiveOrdersForDriver`, else the honest answer that there is no such job.
+Legacy URLs without the key keep working. No page falls back to the fixture.
+
+**Deliberately not done in this pass:** findings 2 and 3 (they need Rio's
+decisions A and B), and findings 4 and 5 — the dead `/driver/delivery-status`
+route, the duplicated pickup step, and moving the chain under `DriverLayout`.
+Those are separate commits so this one stays reviewable.
+
+**Built.** `useDriverJob` resolves a job from router state, else by `table:id`
+from the route, else reports it missing; `jobPath(base, order)` builds the
+addressed route and falls back to the bare one for an order with no identity.
+`DriverJobState` is the single "no job" screen, so six screens stop each
+inventing an answer. The six chain routes take an optional `:jobKey`, so old
+URLs still resolve. Four screens (active-delivery, navigation, confirm-pickup,
+delivery-status) are gated on a real job; the two terminal screens
+(collect-payment, rate-customer) keep router state as their source **on
+purpose** — by then the job is completed and would not come back from an
+active-jobs fetch, so gating them on one would have blocked a driver from
+finishing. Every entry into the chain now carries the identity: both
+`useOfferActions` accepts, both provider navigations, and the Orders page.
+`src/data/driverOrderDefaults.js` is deleted — nothing imported it any more.
+
+**Verified:** `npm run build` passes. `offerProximity` 8/8 pass. No reference to
+`DEFAULT_DRIVER_ORDER` survives outside a comment, and the hardcoded
+`'Stratford, London E15'` pickup fallback is gone. React's rules of hooks hold:
+every gate sits after the last hook in its component, checked per file.
+
+**Not verified — this is the gate.** *None of it has been run.* Not in a
+browser, not on the emulator, no driver walked the chain. Specifically unproven:
+that a reload on `/driver/active-delivery/<key>` actually recovers the job, and
+that `fetchActiveOrdersForDriver` returns the row for each of the four gated
+screens. Proving it needs the throwaway project, a driver session and an
+accepted job — do that before this is called done.
+
+**Pre-existing, not mine:** `App.test.js` fails on a TypeScript file inside
+`node_modules` (`iobuffer` → `fast-png` → `jspdf` → `adminReportsBundle`).
+Confirmed by reverting `src/App.js` to `HEAD` and re-running: identical failure.
+`CI=true npm run build` also still fails on ESLint warnings in five untouched
+files.
+
+**Deliberately not built:** findings 2 and 3 (they wait on decisions A and B),
+and 4 and 5 — the dead `/driver/delivery-status` route is now honest but still
+unreachable, the pickup step is still implemented twice, and the chain still
+sits outside `DriverLayout`.

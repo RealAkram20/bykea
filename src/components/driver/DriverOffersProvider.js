@@ -33,6 +33,7 @@ import { ORDER_ALREADY_ACCEPTED_MSG } from '../../lib/claimOpenBooking';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
 import { publishDriverOnlineLocation } from '../../lib/nearbyDrivers';
 import { useLiveLocation } from '../../hooks/useLiveLocation';
+import { jobPath } from './useDriverJob';
 import ConfirmDialog from '../ConfirmDialog';
 import './driverNewOfferNotifier.css';
 
@@ -478,9 +479,8 @@ export function DriverOffersProvider({ children }) {
             );
             if (job) {
               markDriverAutoOpenedAcceptedDelivery(job.table, job.id);
-              navigateRef.current('/driver/active-delivery', {
-                state: { order: offerToActiveDeliveryOrder(job) },
-              });
+              const active = offerToActiveDeliveryOrder(job);
+              navigateRef.current(jobPath('active-delivery', active), { state: { order: active } });
             }
           }
         } catch {
@@ -735,7 +735,8 @@ export function DriverOffersProvider({ children }) {
       }
       removeOfferLocally(offer.table, offer.id);
       setRecent(await fetchRecentForDriver(supabase, driverId));
-      navigateRef.current('/driver/active-delivery', { state: { order: offerToActiveDeliveryOrder(offer) } });
+      const job = offerToActiveDeliveryOrder(offer);
+      navigateRef.current(jobPath('active-delivery', job), { state: { order: job } });
     })();
     return undefined;
   }, [offers, actionTick, driverId, driverVehicleType, removeOfferLocally]);

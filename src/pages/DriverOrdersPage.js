@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
+import { jobPath } from '../components/driver/useDriverJob';
 import { formatGBP } from '../lib/currency';
 import {
   fetchActiveOrdersForDriver,
@@ -78,9 +78,7 @@ export default function DriverOrdersPage() {
   }, [load]);
 
   const openActive = (row) => {
-    navigate('/driver/active-delivery', {
-      state: { order: { ...DEFAULT_DRIVER_ORDER, ...row.order } },
-    });
+    navigate(jobPath('active-delivery', row.order), { state: { order: row.order } });
   };
 
   return (

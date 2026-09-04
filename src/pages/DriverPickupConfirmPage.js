@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import DeliveryPin from '../components/DeliveryPin';
 import PackagePhotoCapture from '../components/PackagePhotoCapture';
-import { DEFAULT_DRIVER_ORDER } from '../data/driverOrderDefaults';
+import DriverJobState from '../components/driver/DriverJobState';
+import { jobPath, useDriverJob } from '../components/driver/useDriverJob';
 import { DELIVERY_PIN_LENGTH } from '../lib/deliveryConfirmationCode';
 import { isPackagePhotoSrc, persistParcelPackagePhoto } from '../lib/packagePhoto';
 import { notifyShopOrderPickedUp } from '../lib/shopOrderPickedUpNotify';
@@ -38,11 +39,8 @@ function LocPin() {
 
 export default function DriverPickupConfirmPage() {
   const navigate = useNavigate();
-  const { state } = useLocation();
-  const o = useMemo(
-    () => (state?.order ? { ...DEFAULT_DRIVER_ORDER, ...state.order } : { ...DEFAULT_DRIVER_ORDER }),
-    [state],
-  );
+  const { order, status: jobStatus, error: jobError, reload: reloadJob } = useDriverJob();
+  const o = useMemo(() => order || {}, [order]);
   const isParcel = String(o.bookingTable || '') === 'customer_delivery_orders' || String(o.bookingKind || '') === 'parcel';
   const customerPhoto = isPackagePhotoSrc(o.packagePhotoDataUrl) ? o.packagePhotoDataUrl : '';
   const [otp, setOtp] = useState('');
@@ -76,7 +74,7 @@ export default function DriverPickupConfirmPage() {
       if (!error) notifyShopOrderPickedUp(supabase, orderId);
     }
     setSaving(false);
-    navigate('/driver/navigation', {
+    navigate(jobPath('navigation', o), {
       replace: true,
       state: {
         order: { ...o, driverPackagePhotoDataUrl: driverPhoto },
@@ -89,6 +87,10 @@ export default function DriverPickupConfirmPage() {
       },
     });
   }, [can, driverPhoto, isParcel, navigate, o, saving]);
+
+  if (jobStatus !== 'ready') {
+    return <DriverJobState status={jobStatus} error={jobError} label="pickup" onRetry={reloadJob} />;
+  }
 
   return (
     <div className="pu-page dd" role="main" aria-label="Confirm pickup">
