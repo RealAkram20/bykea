@@ -1038,11 +1038,11 @@ script does not set `CI`, so this is a latent trap for any CI that does.
 
 Branch `kigatta-handover` on `origin`, PR:
 `https://github.com/KIGATTA-INVESTMENTS/bykea/pull/1` — 27 commits, 96 files.
-**`CLAUDE.md` was stripped from every commit in that branch** (`filter-branch
---index-filter`), Rio's decision: it names him as not owning the system, calls
-the client's migration request mis-aimed, and points at `D:\OS`. `AGENTS.md` is
-the client-facing equivalent and is in the PR. `master` still carries CLAUDE.md
-and is unchanged; the rewrite touched only the handover branch.
+`AGENTS.md` is the handover doc in that branch: self-contained, written for a
+developer and their agents who have none of this project's private context.
+(The handover branch is built from `master` with the local-only working notes
+excluded; the reasoning for that lives in the wiki, not here, so this file stays
+useful to whoever reads it.)
 
 **Not verified:** nothing in the PR was run on a real handset, and the PR says
 so. The client's developer has not responded yet.
