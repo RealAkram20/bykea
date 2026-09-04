@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.os.PowerManager;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -48,6 +49,12 @@ public class OfferMessagingService extends MessagingService {
     /** One id for every offer notification; the FCM `tag` (one per order) tells them apart. */
     static final int NOTIFICATION_ID = 0x1960;
 
+    /** The `type` value of a ring message. MainActivity reads it off the launch intent. */
+    static final String TYPE_OFFER_RING = "offer_ring";
+
+    /** How long the screen is held lit for an offer when the phone was dark. */
+    static final long WAKE_MS = 15_000L;
+
     static final String EXTRA_ACTION = "ingoAction";
     static final String ACTION_ACCEPT = "accept";
     static final String ACTION_DECLINE = "decline";
@@ -59,7 +66,7 @@ public class OfferMessagingService extends MessagingService {
         String tag = data.get("tag");
         Log.i(TAG, "message type=" + type + " tag=" + tag + " hasNotificationBlock=" + (message.getNotification() != null));
 
-        if ("offer_ring".equals(type) && tag != null && !tag.isEmpty()) {
+        if (TYPE_OFFER_RING.equals(type) && tag != null && !tag.isEmpty()) {
             show(message, data, tag);
         } else if ("offer_stop".equals(type) && tag != null && !tag.isEmpty()) {
             manager().cancel(tag, NOTIFICATION_ID);
@@ -93,12 +100,74 @@ public class OfferMessagingService extends MessagingService {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setContentIntent(open)
+            // ADR 0003. Phone in use: Android pins the heads-up instead of fading it
+            // after ~5 s. Phone dark or locked: Android starts MainActivity over the
+            // keyguard (MainActivity honours that only for an offer launch). Needs
+            // USE_FULL_SCREEN_INTENT in the manifest; without it Android silently
+            // posts the ordinary 5 s banner instead — see logFullScreenGrant().
+            .setFullScreenIntent(open, true)
             .addAction(0, "Accept", accept)
             .addAction(0, "Decline", decline)
             .build();
 
         manager().notify(tag, NOTIFICATION_ID, n);
         Log.i(TAG, "posted tag=" + tag + " title=" + title);
+        boolean fsi = logFullScreenGrant();
+        lightUpScreen(fsi);
+    }
+
+    /**
+     * Lights a dark screen for WAKE_MS so the offer is seen on the lock screen.
+     *
+     * The full-screen intent is what wakes the screen and starts the activity when
+     * it is granted. This is the floor underneath it: on Android 14+ a Play build may
+     * lack the special access, and Android then posts a plain heads-up on a screen
+     * that stays dark. A driver with the phone face-down in a cradle sees nothing.
+     * The wake-lock flags are deprecated and still honoured; the lock is timed, so
+     * it cannot leak. Never bypasses Do Not Disturb: it makes light, not sound.
+     */
+    @SuppressWarnings("deprecation")
+    private void lightUpScreen(boolean fullScreenIntentGranted) {
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm == null) { Log.w(TAG, "no PowerManager; screen not lit"); return; }
+            if (pm.isInteractive()) { Log.i(TAG, "screen already on; no wake lock"); return; }
+            if (fullScreenIntentGranted) {
+                // The full-screen intent wakes the screen and starts the activity in one
+                // SystemUI transition. Waking it here first, ~2 s before a cold-started
+                // activity can draw, made SystemUI bounce back to the keyguard
+                // (measured 2026-09-03: "state SHADE != upcomingState KEYGUARD", app in
+                // front only 25 s later). So the wake lock is the fallback, not the rule.
+                Log.i(TAG, "screen dark; leaving the wake to the full-screen intent");
+                return;
+            }
+            PowerManager.WakeLock wl = pm.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE,
+                "ingo:offer");
+            wl.acquire(WAKE_MS);
+            Log.i(TAG, "screen was dark; lit for " + WAKE_MS + " ms");
+        } catch (RuntimeException e) {
+            Log.w(TAG, "wake lock failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Android 14+ treats USE_FULL_SCREEN_INTENT as a special app access. It is granted
+     * to a sideloaded or debug install, but Play may withhold it from a non-calling
+     * app — and Android does not refuse a full-screen intent it has not granted, it
+     * quietly downgrades it to a heads-up that fades in ~5 s. That failure is
+     * otherwise indistinguishable from success, so it is logged on every ring.
+     */
+    private boolean logFullScreenGrant() {
+        if (Build.VERSION.SDK_INT < 34) {
+            Log.i(TAG, "fullScreenIntent granted (pre-Android 14: granted at install)");
+            return true;
+        }
+        boolean ok = manager().canUseFullScreenIntent();
+        Log.i(TAG, ok
+            ? "fullScreenIntent granted"
+            : "fullScreenIntent NOT granted: Android will show a 5 s heads-up instead of the sticky/lock-screen offer");
+        return ok;
     }
 
     /**

@@ -61,6 +61,19 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+      ADR 0003. Lets the offer notification's full-screen intent work: a heads-up
+      that stays put while the phone is in use, and MainActivity over the keyguard
+      when the phone is dark or locked. Without this line Android does not refuse
+      the intent, it silently posts the ordinary 5 s banner. Android 14+ treats it
+      as a special app access; sideloaded/debug installs have it, a Play build of a
+      non-calling app may not (OfferMessagingService logs which on every ring).
+    -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- ADR 0003. OfferMessagingService lights a dark screen for 15 s when an offer arrives. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
       Driver location. useLiveLocation.js calls navigator.geolocation.watchPosition;
       without these declared, Android refuses the WebView's request silently: the
       "Retry location" button appears to do nothing and driver_live_* never updates,
