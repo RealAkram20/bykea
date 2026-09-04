@@ -976,8 +976,8 @@ Proximity is computed at use from text addresses; no coordinates are persisted.
 
 ## 2026-09-04 — Driver flow read; the store-build source question reopened
 
-**Status:** in progress
-**Owns:** nothing yet — documentation only.
+**Status:** complete
+**Owns:** `AGENTS.md`.
 **Shares:** `CLAUDE.md` — exact edit: the remotes bullet and the `android/` bullet.
 
 **What this is.** Rio asked for a read of the driver side: the flow, the screen
@@ -1025,3 +1025,28 @@ goes entirely or becomes a read-only row.
 
 **For whoever is next:** do not re-run the store-source search; it is recorded
 above. Ask Rio for the location instead.
+
+**Handed to the client, 2026-09-04.** Rio: "we are pushing to kigatta". Rio's
+access to `KIGATTA-INVESTMENTS/bykea` is **READ** (`gh repo view` →
+`viewerPermission: READ`), so a direct push is impossible and the route is a PR
+from the fork. Four commits made from the pending tree (native push / geo +
+proximity / the offer screen / docs), ordered so each builds: the offer screen
+imports `offerProximity`, so the geo commit lands first. `npm run build` passes
+(`main.48c960df.js`). Note `CI=true npm run build` **fails** on pre-existing
+ESLint warnings in five files nobody touched here — the project's own build
+script does not set `CI`, so this is a latent trap for any CI that does.
+
+Branch `kigatta-handover` on `origin`, PR:
+`https://github.com/KIGATTA-INVESTMENTS/bykea/pull/1` — 27 commits, 96 files.
+**`CLAUDE.md` was stripped from every commit in that branch** (`filter-branch
+--index-filter`), Rio's decision: it names him as not owning the system, calls
+the client's migration request mis-aimed, and points at `D:\OS`. `AGENTS.md` is
+the client-facing equivalent and is in the PR. `master` still carries CLAUDE.md
+and is unchanged; the rewrite touched only the handover branch.
+
+**Not verified:** nothing in the PR was run on a real handset, and the PR says
+so. The client's developer has not responded yet.
+
+**For whoever is next:** do not push `master` to `origin` and then open a second
+PR — it would re-introduce `CLAUDE.md` to the client. Use `kigatta-handover`,
+rebuilt the same way, if more work needs handing over.
