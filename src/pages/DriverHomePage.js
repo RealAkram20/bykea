@@ -1,42 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GoogleMapEmbed from '../components/GoogleMapEmbed';
 import LiveUserGoogleMap from '../components/LiveUserGoogleMap';
 import { useDriverOffers } from '../components/driver/DriverOffersProvider';
-import { useLiveLocation } from '../hooks/useLiveLocation';
 import { useThrottledMapEmbedSrc } from '../hooks/useThrottledMapEmbedSrc';
 import {
-  driverAcceptOffer,
-  driverRejectOffer,
-  fetchRecentForDriver,
   formatOfferTime,
   isCashCustomerPayment,
   isOpenBookingRowFresh,
   isWalletCustomerPayment,
-  offerToActiveDeliveryOrder,
   openOfferSecondsLeft,
   OPEN_OFFER_MAX_AGE_MS,
   OFFER_RING_CYCLE_MS,
-  ORDER_ALREADY_ACCEPTED_MSG,
 } from '../lib/driverIncomingBookings';
-import { driverPlaceBid } from '../lib/bookingBids';
+import { useOfferActions } from '../components/driver/useOfferActions';
+import { kindLabel, OfferPinDrop, OfferPinPickup } from '../components/driver/offerPresentation';
+import { readLastDeviceFix } from '../hooks/useLiveLocation';
+import { formatDistanceKm, sortOffersByDistance, useOfferDistances } from '../lib/offerProximity';
 import { formatGBP } from '../lib/currency';
 import { DEFAULT_MAP_FALLBACK, publicViewMapUrlDriver, trustedMapCenter } from '../lib/googleMapsConfig';
-import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { unlockDriverOfferAudio } from '../lib/driverOfferRing';
-import { publishDriverOnlineLocation } from '../lib/nearbyDrivers';
 import CarIcon from '../components/icons/CarIcon';
 import { LOGIN_HERO_ART } from '../lib/ingoLogo';
 import DriverPermissionPrompts from '../components/driver/DriverPermissionPrompts';
 import './driverPortal.css';
 import './driverHomePremium.css';
-
-function kindLabel(kind) {
-  if (kind === 'parcel') return 'Delivery';
-  if (kind === 'shop') return 'Shop delivery';
-  if (kind === 'tuktuk') return 'Tuk-Tuk';
-  return 'Taxi';
-}
 
 /** Readable place line: title-case words; keep leading numeric tokens as-is. */
 function titleCasePlaceLine(s) {
@@ -61,36 +49,6 @@ function recentJobTone(st) {
   if (s.includes('assign') || s.includes('active') || s.includes('en route') || s.includes('pickup')) return 'prog';
   if (s.includes('confirm') || s.includes('pending') || s.includes('request') || s.includes('placed')) return 'conf';
   return 'neu';
-}
-
-function OfferPinPickup() {
-  return (
-    <svg className="dh-offerCard__pinSvg" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
-      <path
-        d="M12 21s7-4.35 7-10a7 7 0 1 0-14 0c0 5.65 7 10 7 10Z"
-        fill="rgba(241,134,49,0.15)"
-        stroke="#e07828"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="11" r="2.2" fill="#F18631" />
-    </svg>
-  );
-}
-
-function OfferPinDrop() {
-  return (
-    <svg className="dh-offerCard__pinSvg" viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden>
-      <path
-        d="M12 21s7-4.35 7-10a7 7 0 1 0-14 0c0 5.65 7 10 7 10Z"
-        fill="rgba(229,57,53,0.12)"
-        stroke="#c62828"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="11" r="2.2" fill="#e53935" />
-    </svg>
-  );
 }
 
 function IconPower() {
@@ -151,21 +109,15 @@ function JobKindIcon({ kind }) {
 
 export default function DriverHomePage() {
   const navigate = useNavigate();
-  const live = useLiveLocation({ mapThrottleMs: 12000, movePublishMeters: 80 });
   const {
     online,
     setOnline,
+    live,
     offers,
     recent,
-    setRecent,
     loadErr,
     ringingOfferKeys,
-    driverId,
-    driverVehicleType,
     driverRegisteredAt,
-    removeOfferLocally,
-    refreshOffers,
-    setTakenNotice,
   } = useDriverOffers();
 
   const [jsMapFailed, setJsMapFailed] = useState(false);
@@ -179,39 +131,22 @@ export default function DriverHomePage() {
   const stableDriverMapSrc = useThrottledMapEmbedSrc(driverMapSrc, { throttleMs: 20000 });
   const mapCenter = useMemo(() => trustedMapCenter(live.mapCenter), [live.mapCenter]);
   const jsMapAvailable = !jsMapFailed;
-  const liveRef = useRef(live);
-  liveRef.current = live;
 
-  const [actionMsg, setActionMsg] = useState('');
-  const [busyKey, setBusyKey] = useState('');
-  const [bidModeKey, setBidModeKey] = useState('');
-  const [bidDraft, setBidDraft] = useState('');
-  const [myBids, setMyBids] = useState({});
-  const acceptingRef = useRef(false);
+  const {
+    accept: onAccept,
+    reject: onReject,
+    bid: onBid,
+    actionMsg,
+    setActionMsg,
+    busyKey,
+    bidModeKey,
+    setBidModeKey,
+    bidDraft,
+    setBidDraft,
+    myBids,
+  } = useOfferActions();
   /** Re-render every second for countdown / expiry */
   const [, setSecTick] = useState(0);
-
-  useEffect(() => {
-    if (!driverId || !isSupabaseConfigured || !supabase) return undefined;
-    if (!online) {
-      void publishDriverOnlineLocation(supabase, driverId, null, null, false);
-      return undefined;
-    }
-    const push = () => {
-      const { lat, lng, hasFix } = liveRef.current;
-      if (!hasFix || lat == null || lng == null) {
-        void publishDriverOnlineLocation(supabase, driverId, null, null, true);
-        return;
-      }
-      void publishDriverOnlineLocation(supabase, driverId, lat, lng, true);
-    };
-    push();
-    const id = window.setInterval(push, 15_000);
-    return () => {
-      window.clearInterval(id);
-      void publishDriverOnlineLocation(supabase, driverId, null, null, false);
-    };
-  }, [driverId, online]);
 
   useEffect(() => {
     if (!online) return undefined;
@@ -227,6 +162,16 @@ export default function DriverHomePage() {
           isOpenBookingRowFresh(o.raw || { created_at: o.created_at, assigned_driver_id: null }, driverRegisteredAt),
       );
 
+  // Nearest pickup first. Unknown distances keep their order after the known ones.
+  const driverPos = live.hasFix ? { lat: live.lat, lng: live.lng } : readLastDeviceFix();
+  const { distances: offerDistances } = useOfferDistances(visibleOffers, driverPos);
+  const sortedOffers = useMemo(
+    () => sortOffersByDistance(visibleOffers, offerDistances),
+    // offerDistances is rebuilt each render; its content is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleOffers, [...offerDistances.values()].join(',')],
+  );
+
   const recentTotal = useMemo(() => recent.reduce((s, r) => s + (Number(r.amt) || 0), 0), [recent]);
 
   const offerKey = (o) => `${o.table}:${o.id}`;
@@ -235,112 +180,7 @@ export default function DriverHomePage() {
     setActionMsg('');
     unlockDriverOfferAudio();
     setOnline((was) => !was);
-  }, [setOnline]);
-
-  const onAccept = useCallback(
-    async (offer) => {
-      if (!supabase || !driverId) return;
-      const k = offerKey(offer);
-      if (acceptingRef.current || busyKey) return;
-      acceptingRef.current = true;
-      setBusyKey(k);
-      setActionMsg('');
-      const res = await driverAcceptOffer(supabase, offer, driverId, driverVehicleType);
-      setBusyKey('');
-      acceptingRef.current = false;
-      if (!res.ok) {
-        if (/already accepted/i.test(String(res.error || ''))) {
-          removeOfferLocally(offer.table, offer.id);
-          setTakenNotice?.(res.error || ORDER_ALREADY_ACCEPTED_MSG);
-          void refreshOffers();
-          return;
-        }
-        setActionMsg(res.error || 'Could not send offer.');
-        return;
-      }
-
-      // Parcel / taxi / tuk: offer stays pending until the customer chooses this driver.
-      if (res.pending) {
-        const fare = Number(res.fare);
-        if (Number.isFinite(fare) && fare > 0) {
-          setMyBids((prev) => ({ ...prev, [k]: fare }));
-        }
-        setActionMsg(
-          `Offer of ${formatGBP(Number.isFinite(fare) && fare > 0 ? fare : offer.amount)} sent — waiting for the customer to choose you (more than one driver has seen this request).`,
-        );
-        void refreshOffers();
-        return;
-      }
-
-      // Shop (and any legacy instant-claim path): go straight to active delivery.
-      removeOfferLocally(offer.table, offer.id);
-      const rec = await fetchRecentForDriver(supabase, driverId);
-      setRecent(rec);
-      navigate('/driver/active-delivery', { state: { order: offerToActiveDeliveryOrder(offer) } });
-    },
-    [busyKey, driverId, driverVehicleType, navigate, refreshOffers, removeOfferLocally, setRecent, setTakenNotice],
-  );
-
-  const onReject = useCallback(
-    async (offer) => {
-      if (!supabase || !driverId) return;
-      const k = offerKey(offer);
-      setBusyKey(k);
-      setActionMsg('');
-      const res = await driverRejectOffer(supabase, offer, driverId);
-      setBusyKey('');
-      if (!res.ok) {
-        setActionMsg(res.error || 'Could not save rejection.');
-        return;
-      }
-      removeOfferLocally(offer.table, offer.id);
-    },
-    [driverId, removeOfferLocally],
-  );
-
-  const onBid = useCallback(
-    async (offer) => {
-      if (!supabase || !driverId) return;
-      const k = offerKey(offer);
-      const amount = Number(bidDraft);
-      if (!Number.isFinite(amount) || amount <= 0) {
-        setActionMsg('Enter a valid bid amount.');
-        return;
-      }
-      setBusyKey(k);
-      setActionMsg('');
-      const table = offer.table;
-      if (!['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'].includes(table)) {
-        setBusyKey('');
-        setActionMsg('Bidding is not available for this job type.');
-        return;
-      }
-      const res = await driverPlaceBid(supabase, table, offer.id, driverId, amount);
-      setBusyKey('');
-      if (!res.ok) {
-        if (/already accepted/i.test(String(res.error || ''))) {
-          removeOfferLocally(offer.table, offer.id);
-          setTakenNotice?.(res.error || ORDER_ALREADY_ACCEPTED_MSG);
-          return;
-        }
-        setActionMsg(res.error || 'Could not place bid.');
-        return;
-      }
-      if (res.claimed) {
-        removeOfferLocally(offer.table, offer.id);
-        const rec = await fetchRecentForDriver(supabase, driverId);
-        setRecent(rec);
-        navigate('/driver/active-delivery', { state: { order: offerToActiveDeliveryOrder(offer) } });
-        return;
-      }
-      setBidModeKey('');
-      setBidDraft('');
-      setMyBids((prev) => ({ ...prev, [k]: res.amount }));
-      setActionMsg(`Bid of ${formatGBP(res.amount)} sent — waiting for the customer to choose you.`);
-      void refreshOffers();
-    },
-    [driverId, bidDraft, navigate, refreshOffers, removeOfferLocally, setRecent, setTakenNotice],
-  );
+  }, [setOnline, setActionMsg]);
 
   return (
     <div className="dh dh--premium" role="main" aria-label="Driver home">
@@ -465,8 +305,9 @@ export default function DriverHomePage() {
         ) : null}
 
         {online &&
-          visibleOffers.map((offer) => {
+          sortedOffers.map((offer) => {
             const k = offerKey(offer);
+            const fromYouKm = offerDistances.get(k);
             const busy = busyKey === k;
             const secLeft = openOfferSecondsLeft(offer.created_at);
             const pct = (secLeft / (OFFER_RING_CYCLE_MS / 1000)) * 100;
@@ -539,6 +380,12 @@ export default function DriverHomePage() {
                     {offer.eta}
                   </span>
                 </p>
+
+                {fromYouKm != null ? (
+                  <p className="dh-offerCard__dist dh-offerCard__dist--fromYou" role="status">
+                    Pickup about {formatDistanceKm(fromYouKm)} from you
+                  </p>
+                ) : null}
 
                 <p className="dh-offerCard__pkg" role="status">
                   {offer.pkg}

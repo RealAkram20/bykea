@@ -1,0 +1,417 @@
+/* Full-screen driver offer. Tokens only; raw values live in src/index.css. */
+
+.dop {
+  --dop-accent: var(--ingo-secondary);
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--ingo-surface-alt);
+  color: var(--ingo-text);
+}
+
+.dop__srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Top bar */
+.dop__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ingo-space-2);
+  padding: calc(var(--ingo-space-2) + env(safe-area-inset-top, 0)) var(--ingo-space-3) var(--ingo-space-2);
+  background: var(--ingo-secondary);
+  color: #fff;
+}
+.dop__barTitle {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.dop__kind {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.dop__ref {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dop__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.dop__close:focus-visible,
+.dop__btn:focus-visible,
+.dop__link:focus-visible,
+.dop__bidInput:focus-visible {
+  outline: none;
+  box-shadow: var(--ingo-focus);
+}
+
+/* Body */
+.dop__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--ingo-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ingo-space-2);
+}
+
+.dop__timer {
+  text-align: center;
+  padding: var(--ingo-space-1) 0 var(--ingo-space-2);
+}
+.dop__timerTxt {
+  margin: 0 0 var(--ingo-space-1);
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ingo-secondary);
+}
+.dop__timerTxt--urgent {
+  color: var(--ingo-danger);
+}
+.dop--ringing .dop__timerTxt {
+  animation: dop-pulse 1.2s ease-in-out infinite;
+}
+.dop__pb {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ingo-border);
+  overflow: hidden;
+}
+.dop__pbFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ingo-secondary);
+  transition: width 1s linear;
+}
+.dop__pbFill--urgent {
+  background: var(--ingo-danger);
+}
+.dop__when {
+  margin: var(--ingo-space-1) 0 0;
+  font-size: 0.8rem;
+  color: var(--ingo-muted);
+}
+
+.dop__card {
+  background: var(--ingo-surface);
+  border: 1px solid var(--ingo-border);
+  border-radius: var(--ingo-radius);
+  padding: var(--ingo-space-3);
+  box-shadow: var(--ingo-shadow);
+}
+.dop__card--row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.dop__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ingo-space-2);
+}
+.dop__lbl {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ingo-muted);
+}
+.dop__val {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+/* Route */
+.dop__stop {
+  display: flex;
+  gap: var(--ingo-space-2);
+  align-items: flex-start;
+}
+.dop__pin {
+  flex: 0 0 auto;
+  display: inline-flex;
+  width: 24px;
+  justify-content: center;
+}
+.dop__stopBody {
+  min-width: 0;
+}
+.dop__stopLbl {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ingo-muted);
+}
+.dop__addr {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.dop__rail {
+  width: 2px;
+  height: 18px;
+  margin: 0.2rem 0 0.2rem 11px;
+  border-left: 2px dotted var(--ingo-border);
+}
+.dop__dist {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: var(--ingo-space-2) 0 0;
+  font-size: 0.9rem;
+  color: var(--ingo-muted);
+}
+.dop__distIcon {
+  display: inline-flex;
+  color: var(--ingo-secondary);
+}
+.dop__fromYou {
+  margin: var(--ingo-space-1) 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ingo-text);
+}
+
+/* Payment */
+.dop__payVal {
+  font-weight: 700;
+}
+.dop__pay--wallet {
+  border-color: var(--ingo-success);
+  background: var(--ingo-success-soft);
+}
+.dop__pay--cash {
+  border-color: var(--ingo-warning);
+  background: var(--ingo-warning-soft);
+}
+.dop__payNote {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.dop__pay--wallet .dop__payNote {
+  color: var(--ingo-success);
+}
+.dop__pay--cash .dop__payNote {
+  color: var(--ingo-warning);
+}
+
+/* Price */
+.dop__price {
+  text-align: center;
+  padding: var(--ingo-space-2) 0;
+}
+.dop__priceLbl {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ingo-muted);
+}
+.dop__amt {
+  margin: 0.15rem 0 0;
+  font-size: 2.4rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--ingo-secondary);
+}
+.dop__min,
+.dop__myBid {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ingo-muted);
+}
+.dop__myBid {
+  font-weight: 600;
+  color: var(--ingo-success);
+}
+
+.dop__alert {
+  margin: 0;
+  padding: var(--ingo-space-2) var(--ingo-space-3);
+  border-radius: var(--ingo-radius-sm);
+  background: var(--ingo-warning-soft);
+  border: 1px solid var(--ingo-warning);
+  color: var(--ingo-warning);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* Counter-offer */
+.dop__bidLbl {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.dop__bidRow {
+  display: flex;
+  gap: var(--ingo-space-1);
+}
+.dop__bidInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--ingo-border);
+  border-radius: var(--ingo-radius-sm);
+  font-size: 1rem;
+}
+
+/* Footer actions */
+.dop__foot {
+  padding: var(--ingo-space-2) var(--ingo-space-3) calc(var(--ingo-space-3) + env(safe-area-inset-bottom, 0));
+  background: var(--ingo-surface);
+  border-top: 1px solid var(--ingo-border);
+}
+.dop__actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: var(--ingo-space-2);
+}
+.dop__btn {
+  min-height: 56px;
+  padding: 0.75rem 1rem;
+  border-radius: var(--ingo-radius);
+  border: 2px solid transparent;
+  font-size: 1.05rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.dop__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.dop__btn--accept {
+  background: var(--ingo-success);
+  color: #fff;
+}
+.dop__btn--decline {
+  background: var(--ingo-surface);
+  border-color: var(--ingo-danger);
+  color: var(--ingo-danger);
+}
+.dop__btn--primary {
+  background: var(--ingo-secondary);
+  color: #fff;
+}
+.dop__btn--ghost {
+  background: transparent;
+  border-color: var(--ingo-border);
+  color: var(--ingo-text);
+}
+.dop__btn--sm {
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+}
+.dop__link {
+  display: block;
+  width: 100%;
+  margin-top: var(--ingo-space-2);
+  padding: 0.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--ingo-secondary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.dop__link:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.dop__note {
+  margin: var(--ingo-space-1) 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--ingo-muted);
+}
+
+/* Empty / loading / gone */
+.dop__state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--ingo-space-4);
+  gap: var(--ingo-space-2);
+}
+.dop__stateTitle {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.dop__stateText {
+  margin: 0;
+  color: var(--ingo-muted);
+}
+.dop__state .dop__btn {
+  margin-top: var(--ingo-space-2);
+  min-width: 12rem;
+}
+.dop__spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 3px solid var(--ingo-border);
+  border-top-color: var(--ingo-secondary);
+  animation: dop-spin 0.9s linear infinite;
+}
+
+@keyframes dop-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes dop-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dop--ringing .dop__timerTxt,
+  .dop__spinner {
+    animation: none;
+  }
+  .dop__pbFill {
+    transition: none;
+  }
+}

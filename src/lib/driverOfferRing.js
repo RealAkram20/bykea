@@ -354,8 +354,10 @@ export function notifyDriverNewOffer(opts = {}) {
     }
   }
 
-  // Always mirror into an in-app banner for native apps / blocked Notification API.
-  if (!showedSystem || isLikelyNativeWebView()) {
+  // Browser fallback only. In the native app the OS notification (Accept /
+  // Decline, full-screen intent) and the in-app offer screen are the surfaces;
+  // the DOM banner was dropped on 2026-09-03 at the client's request.
+  if (!showedSystem && !isLikelyNativeWebView()) {
     showInAppOfferBanner({ title, body, tag, onClickPath });
   }
 }

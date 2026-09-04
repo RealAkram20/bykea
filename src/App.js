@@ -46,6 +46,7 @@ import DriverAuthGate from './components/driver/DriverAuthGate';
 import DriverRegisterPage from './pages/DriverRegisterPage';
 import DriverLoginPage from './pages/DriverLoginPage';
 import DriverHomePage from './pages/DriverHomePage';
+import DriverOfferPage from './pages/DriverOfferPage';
 import DriverOrdersPage from './pages/DriverOrdersPage';
 import DriverEarningsPage from './pages/DriverEarningsPage';
 import DriverWalletPage from './pages/DriverWalletPage';
@@ -273,6 +274,7 @@ function App() {
             <Route path="/driver" element={<DriverLayout />}>
               <Route index element={<Navigate to="home" replace />} />
               <Route path="home" element={<DriverHomePage />} />
+              <Route path="offer/:offerKey" element={<DriverOfferPage />} />
               <Route path="orders" element={<DriverOrdersPage />} />
               <Route path="earnings" element={<DriverEarningsPage />} />
               <Route path="wallet" element={<DriverWalletPage />} />

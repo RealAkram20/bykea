@@ -31,6 +31,8 @@ import { fetchDriverNotifPrefs, readCachedDriverNotifPrefs } from '../../lib/dri
 import { playDriverNewOfferRing, unlockDriverOfferAudio, notifyDriverNewOffer, startDriverOfferRing, stopDriverOfferRing, stopAllDriverOfferRings, handleDriverOfferStopSignal } from '../../lib/driverOfferRing';
 import { ORDER_ALREADY_ACCEPTED_MSG } from '../../lib/claimOpenBooking';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
+import { publishDriverOnlineLocation } from '../../lib/nearbyDrivers';
+import { useLiveLocation } from '../../hooks/useLiveLocation';
 import ConfirmDialog from '../ConfirmDialog';
 import './driverNewOfferNotifier.css';
 
@@ -41,6 +43,33 @@ const DriverOffersContext = createContext(null);
 
 function offerKey(o) {
   return `${o.table}:${o.id}`;
+}
+
+/** Route of the full-screen offer for a `table:id` key or a bare order id. */
+export function offerPath(key) {
+  return `/driver/offer/${encodeURIComponent(String(key || ''))}`;
+}
+
+/**
+ * The offer a push tag, offer key or route param refers to, or undefined. One
+ * matcher for the notification buttons and the offer screen: a key may be
+ * `table:id`, a bare id, or a tag ending in the id.
+ */
+export function findOfferForKey(offers, key, tag = '') {
+  const k = String(key || '');
+  const t = String(tag || '');
+  return offers.find((o) => {
+    const id = String(o.id);
+    return offerKey(o) === k || id === k || (t !== '' && t.endsWith(id)) || (k !== '' && k.endsWith(id));
+  });
+}
+
+function isNativeApp() {
+  try {
+    return Boolean(window.Capacitor?.isNativePlatform?.());
+  } catch {
+    return false;
+  }
 }
 
 /** Hard cap on how long a notification button waits for its offer; the real gate is two completed polls. */
@@ -117,6 +146,38 @@ export function DriverOffersProvider({ children }) {
   const [actionTick, setActionTick] = useState(0);
   const [, setSecTick] = useState(0);
 
+  // One GPS watch for the whole driver area. Until 2026-09-03 DriverHomePage owned
+  // the watch and the 15 s publish loop, and its unmount cleanup published
+  // is_online=false — so opening any other tab, or the offer screen, took the
+  // driver out of the dispatch pool (found when the driver row read
+  // is_online=false with a stale position after a ring). Now the loop lives
+  // here, under every /driver/* route, and the offline publish happens only
+  // when the driver goes offline or leaves the driver area.
+  const live = useLiveLocation({ mapThrottleMs: 12000, movePublishMeters: 80 });
+  const liveRef = useRef(live);
+  liveRef.current = live;
+
+  useEffect(() => {
+    if (!driverId || !isSupabaseConfigured || !supabase) return undefined;
+    if (!online) {
+      void publishDriverOnlineLocation(supabase, driverId, null, null, false);
+      return undefined;
+    }
+    const push = async () => {
+      const { lat, lng, hasFix } = liveRef.current;
+      const withFix = hasFix && lat != null && lng != null;
+      const res = await publishDriverOnlineLocation(supabase, driverId, withFix ? lat : null, withFix ? lng : null, true);
+      if (!res?.ok) console.warn('[DriverOffers] publish location failed', res?.error || 'unknown');
+      else if (!withFix) console.info('[DriverOffers] published online with no fix yet');
+    };
+    void push();
+    const id = window.setInterval(() => void push(), 15_000);
+    return () => {
+      window.clearInterval(id);
+      void publishDriverOnlineLocation(supabase, driverId, null, null, false);
+    };
+  }, [driverId, online]);
+
   const onlineRef = useRef(online);
   const knownOfferKeysRef = useRef(new Set());
   const offersPrimedRef = useRef(false);
@@ -126,6 +187,8 @@ export function DriverOffersProvider({ children }) {
   const viewedReportedRef = useRef(new Set());
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
+  const pathRef = useRef(location.pathname);
+  pathRef.current = location.pathname;
   /** A notification button press waiting for its offer: { action, offerKey, tag, at }. */
   const pendingActionRef = useRef(null);
   /** Completed offer polls, success or failure. Lets a parked action wait for real data, not a clock. */
@@ -171,7 +234,10 @@ export function DriverOffersProvider({ children }) {
         console.info(`[DriverOffers] notification button ${JSON.stringify(pendingActionRef.current)}`);
         setActionTick((n) => n + 1);
       }
-      const link = String(detail.link || '/driver/home');
+      // Any tap that names an offer opens the offer screen; the payload's link
+      // is only the fallback for a tap that names nothing.
+      const ref = String(detail.offerKey || '').trim() || String(detail.tag || '').replace(/^ingo-offer-/, '').trim();
+      const link = ref ? offerPath(ref) : String(detail.link || '/driver/home');
       console.info('[DriverOffers] routing to tapped offer', link);
       // The tap deliberately carries only a link and an offer key. The offer itself
       // is re-fetched by the poll below, so an offer somebody else already took
@@ -309,6 +375,20 @@ export function DriverOffersProvider({ children }) {
       for (const k of keys) next.add(k);
       return next;
     });
+
+    if (isNativeApp()) {
+      // In the app the request is a screen, not a toast (2026-09-03, client).
+      // A re-ring re-opens it unless the driver is already looking at it.
+      const target = offerPath(firstKey);
+      if (pathRef.current !== target) {
+        try {
+          navigateRef.current(target);
+        } catch {
+          /* router not ready; the poll still surfaces the offer on home */
+        }
+      }
+      return;
+    }
 
     if (!toast) return;
     setToasts((prev) => [
@@ -578,6 +658,12 @@ export function DriverOffersProvider({ children }) {
   const removeOfferLocally = useCallback((table, id) => {
     const k = `${table}:${id}`;
     stopRingForKey(k);
+    // The OS notification carries live Accept / Decline buttons. Once this driver
+    // has answered the offer anywhere (screen, home card, notification), a stale
+    // row in the shade would answer "no longer available" later. Same tag the
+    // sender uses: `ingo-offer-<table:id>`. Found 2026-09-03 after a decline on
+    // the offer screen left the notification behind.
+    withdrawOfferNotification(`ingo-offer-${k}`);
     setOffers((prev) => prev.filter((o) => offerKey(o) !== k));
     knownOfferKeysRef.current.delete(k);
     cycleRingedRef.current.delete(k);
@@ -595,10 +681,7 @@ export function DriverOffersProvider({ children }) {
   useEffect(() => {
     const p = pendingActionRef.current;
     if (!p || !driverId || !supabase) return undefined;
-    const offer = offers.find((o) => {
-      const k = offerKey(o);
-      return k === p.offerKey || String(o.id) === p.offerKey || (p.tag !== '' && p.tag.endsWith(String(o.id)));
-    });
+    const offer = findOfferForKey(offers, p.offerKey, p.tag);
     if (!offer) {
       // Give up only once the poll has completed twice since the tap without
       // returning the offer, or at the hard cap. A cold start's first poll can
@@ -613,7 +696,7 @@ export function DriverOffersProvider({ children }) {
       pendingActionRef.current = null;
       console.info(`[DriverOffers] notification button: offer not found ${JSON.stringify(p)}`);
       withdrawOfferNotification(p.tag);
-      setActionNotice('That request is no longer available. Another driver may have taken it.');
+      setActionNotice('That request is no longer open. It was already answered, taken by another driver, or timed out.');
       return undefined;
     }
     pendingActionRef.current = null;
@@ -661,6 +744,7 @@ export function DriverOffersProvider({ children }) {
     () => ({
       online,
       setOnline,
+      live,
       offers,
       recent,
       setRecent,
@@ -676,6 +760,7 @@ export function DriverOffersProvider({ children }) {
     [
       online,
       setOnline,
+      live,
       offers,
       recent,
       loadErr,
@@ -719,7 +804,7 @@ export function DriverOffersProvider({ children }) {
                   onClick={() => {
                     dismissToast(t.key);
                     unlockDriverOfferAudio();
-                    navigate('/driver/home');
+                    navigate(offerPath(t.key));
                   }}
                 >
                   View request

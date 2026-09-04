@@ -5,6 +5,26 @@
   --ingo-secondary-rgb: 10, 88, 166;
   --ingo-text: #1a1a1a;
   --ingo-bg: #fff;
+  /* Semantic tokens (added 2026-09-03 for the driver offer screen). The only
+     place raw values live; components use the variables. */
+  --ingo-surface: #ffffff;
+  --ingo-surface-alt: #f4f6fa;
+  --ingo-border: #e2e7ef;
+  --ingo-muted: #5b6472;
+  --ingo-success: #1a8f4a;
+  --ingo-success-soft: #e7f6ec;
+  --ingo-danger: #d33a2f;
+  --ingo-danger-soft: #fdecea;
+  --ingo-warning: #b45309;
+  --ingo-warning-soft: #fff4e5;
+  --ingo-radius: 14px;
+  --ingo-radius-sm: 10px;
+  --ingo-space-1: 0.5rem;
+  --ingo-space-2: 0.75rem;
+  --ingo-space-3: 1rem;
+  --ingo-space-4: 1.5rem;
+  --ingo-shadow: 0 8px 24px rgba(10, 88, 166, 0.12);
+  --ingo-focus: 0 0 0 3px rgba(10, 88, 166, 0.35);
 }
 
 body {

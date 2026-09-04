@@ -10,14 +10,16 @@ export default function DriverLayout() {
   if (!isDriverSignedIn()) {
     return <Navigate to="/driver/login" replace state={{ from: location.pathname }} />;
   }
+  // The offer screen is a call screen: no tab bar under Accept / Decline.
+  const hideNav = location.pathname.startsWith('/driver/offer/');
   return (
     <DriverApprovalGate>
       <DriverOffersProvider>
-        <div className="driver-app">
+        <div className={hideNav ? 'driver-app driver-app--noNav' : 'driver-app'}>
           <div className="driver-app__outlet">
             <Outlet />
           </div>
-          <DriverBottomNav />
+          {hideNav ? null : <DriverBottomNav />}
         </div>
       </DriverOffersProvider>
     </DriverApprovalGate>
