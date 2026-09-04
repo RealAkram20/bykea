@@ -1,8 +1,13 @@
 import { getGoogleMapsApiKey } from './googleMapsConfig';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
 
-/** Zimbabwe-only address search and geocoding (ISO 3166-1 alpha-2). */
-const ADDRESS_COUNTRY_CODE = 'zw';
+/**
+ * Country bias for address search and geocoding (ISO 3166-1 alpha-2).
+ * Defaults to Zimbabwe, the client's market. Set REACT_APP_ADDRESS_COUNTRY (e.g.
+ * `ug`) for a build tested elsewhere; since 2026-09-03 the device fix itself is
+ * trusted anywhere, and this is the only remaining country assumption.
+ */
+const ADDRESS_COUNTRY_CODE = String(process.env.REACT_APP_ADDRESS_COUNTRY || 'zw').trim().toLowerCase() || 'zw';
 
 /** Logs once per function name per tab when Edge returns OK (verify wiring without spamming autocomplete). */
 const mapsEdgeVerifiedLogged = new Set();
@@ -41,12 +46,13 @@ async function invokeMapsEdge(functionName, body) {
   }
 }
 
+/** True when a Google geocode result is in the configured country (or carries no country at all). */
 function isGoogleGeocodeZimbabwe(result) {
   const comps = result?.address_components;
   if (!Array.isArray(comps)) return true;
   const country = comps.find((c) => Array.isArray(c.types) && c.types.includes('country'));
   if (!country) return true;
-  return String(country.short_name || '').toUpperCase() === 'ZW' || /zimbabwe/i.test(String(country.long_name || ''));
+  return String(country.short_name || '').toLowerCase() === ADDRESS_COUNTRY_CODE;
 }
 
 /** Country-only / too-coarse labels we must not use as pickup. */
@@ -210,9 +216,16 @@ async function nominatimThrottle() {
  * Internal — one Nominatim search hit → single-line label for dropdowns.
  * Used by: **`fetchAddressAutocompleteSuggestions`** (OSM path only).
  */
+/**
+ * True when a Nominatim hit is in the configured country. Needs `addressdetails=1`
+ * on the request: without it `hit.address` is absent and every hit was rejected,
+ * which is why the forward-geocode fallback had never returned a point
+ * (found 2026-09-03 while adding driver-side proximity).
+ */
 function isNominatimZimbabwe(hit) {
-  const country = String(hit?.address?.country || '').trim();
-  return /zimbabwe/i.test(country);
+  const code = String(hit?.address?.country_code || '').trim().toLowerCase();
+  if (code) return code === ADDRESS_COUNTRY_CODE;
+  return /zimbabwe/i.test(String(hit?.address?.country || '')) && ADDRESS_COUNTRY_CODE === 'zw';
 }
 
 function formatNominatimLabel(hit) {
@@ -580,7 +593,7 @@ export async function forwardGeocodeAddress(query) {
   }
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=${ADDRESS_COUNTRY_CODE}`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&addressdetails=1&countrycodes=${ADDRESS_COUNTRY_CODE}`;
     const res = await fetch(url, {
       headers: { Accept: 'application/json' },
     });

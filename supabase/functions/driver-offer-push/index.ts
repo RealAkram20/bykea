@@ -47,6 +47,32 @@ type ServiceAccount = {
   private_key?: string;
 };
 
+/**
+ * Geocode a pickup address with Google, or explain why not. Never throws.
+ * `reason` is one of: no_address | no_key | http_<status> | zero_results | error.
+ */
+async function geocodePickup(address: string): Promise<{ point: { lat: number; lng: number } | null; reason: string }> {
+  const q = String(address || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+  if (!q || q === '—') return { point: null, reason: 'no_address' };
+  const key = Deno.env.get('GOOGLE_MAPS_API_KEY')?.trim();
+  if (!key) return { point: null, reason: 'no_key' };
+  try {
+    const params = new URLSearchParams({ address: q, key });
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`);
+    if (!res.ok) return { point: null, reason: `http_${res.status}` };
+    const data = await res.json();
+    const loc = data?.results?.[0]?.geometry?.location;
+    const lat = Number(loc?.lat);
+    const lng = Number(loc?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || (Math.abs(lat) < 1e-8 && Math.abs(lng) < 1e-8)) {
+      return { point: null, reason: data?.status === 'ZERO_RESULTS' ? 'zero_results' : `status_${data?.status || 'unknown'}` };
+    }
+    return { point: { lat, lng }, reason: 'ok' };
+  } catch (e) {
+    return { point: null, reason: `error_${(e as Error)?.message || 'unknown'}` };
+  }
+}
+
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number | null {
   if (![lat1, lng1, lat2, lng2].every((n) => Number.isFinite(n))) return null;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -534,10 +560,24 @@ Deno.serve(async (req) => {
 
   let driverIds = (drivers || []).map((d) => String(d.id));
 
-  // If we somehow have pickup coords later, filter; for now keep all fresh online drivers.
-  // Optional soft filter: if lat/lng present on booking row (future columns), apply radius.
-  const pickupLat = Number(r.pickup_lat ?? r.from_lat);
-  const pickupLng = Number(r.pickup_lng ?? r.from_lng);
+  // Proximity without a schema change (2026-09-03): bookings carry the pickup as
+  // text, so it is geocoded here at ring time when GOOGLE_MAPS_API_KEY is set, and
+  // the radius filter below applies. No key, or a failed lookup, keeps today's
+  // behaviour (every fresh online driver) and says so in the response.
+  let pickupLat = Number(r.pickup_lat ?? r.from_lat);
+  let pickupLng = Number(r.pickup_lng ?? r.from_lng);
+  let proximity: Record<string, unknown> = { source: 'row' };
+  if (!(Number.isFinite(pickupLat) && Number.isFinite(pickupLng))) {
+    const g = await geocodePickup(from);
+    if (g.point) {
+      pickupLat = g.point.lat;
+      pickupLng = g.point.lng;
+      proximity = { source: 'geocoded', radiusKm: NEARBY_RADIUS_KM };
+    } else {
+      proximity = { source: 'none', reason: g.reason, radiusKm: null };
+      console.warn(`[driver-offer-push] no pickup coordinates (${g.reason}); ringing all fresh drivers`);
+    }
+  }
   if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng) && drivers?.length) {
     driverIds = drivers
       .filter((d) => {
@@ -553,7 +593,12 @@ Deno.serve(async (req) => {
   }
 
   if (!driverIds.length) {
-    return json({ ok: true, sent: 0, reason: 'no_online_drivers' });
+    return json({
+      ok: true,
+      sent: 0,
+      reason: (drivers || []).length ? 'no_nearby_drivers' : 'no_online_drivers',
+      proximity,
+    });
   }
 
   // Respect Profile → Notifications: skip drivers who turned off offers or closed-app push.
@@ -617,5 +662,5 @@ Deno.serve(async (req) => {
     await supabase.from('driver_push_tokens').delete().in('fcm_token', invalidTokens);
   }
 
-  return json({ ok: true, action: 'ring', sent, drivers: driverIds.length, tokens: tokens.length, kind, table, orderId });
+  return json({ ok: true, action: 'ring', sent, drivers: driverIds.length, tokens: tokens.length, kind, table, orderId, proximity });
 });

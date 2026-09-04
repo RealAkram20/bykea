@@ -80,6 +80,12 @@ function metersApart(a, b) {
  * `refreshFromUserGesture()` — call from a click handler (e.g. “Use my current location”).
  * Updates lat/lng/map immediately; helps installed PWAs / iOS where watch-only is slow.
  */
+/** The last fix this device stored (any page), or null. For screens that have no watch of their own. */
+export function readLastDeviceFix() {
+  const c = readCachedFix();
+  return c ? { lat: c.lat, lng: c.lng } : null;
+}
+
 export function useLiveLocation(options = {}) {
   const throttleMs = options.mapThrottleMs ?? 4000;
   const movePublishM = options.movePublishMeters ?? 55;
@@ -105,7 +111,7 @@ export function useLiveLocation(options = {}) {
         return false;
       }
       if (!isAcceptableDeviceFix(latitude, longitude)) {
-        console.warn(`${GEO_LOG} ignoring fix outside Zimbabwe service area`, {
+        console.warn(`${GEO_LOG} ignoring unusable fix`, {
           lat: latitude,
           lng: longitude,
           accuracy: acc,

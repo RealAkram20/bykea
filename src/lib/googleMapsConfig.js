@@ -237,22 +237,29 @@ export function isInServiceArea(lat, lng) {
 }
 
 /**
- * Device GPS we trust for maps / pickup — must fall inside the Zimbabwe service box.
+ * Device GPS we trust for maps / pickup: any real fix.
+ *
+ * Until 2026-09-03 this required the fix to fall inside the Zimbabwe box above,
+ * which threw away every fix taken outside Zimbabwe — a driver testing from
+ * Kampala saw a map of Harare and was published online with no coordinates, so
+ * nothing about proximity could work. Decision (Rio): trust the device; Harare
+ * is only the fallback when there is no fix at all. `isInServiceArea` stays
+ * available for callers that genuinely need the box.
  * @param {number} lat
  * @param {number} lng
  * @returns {boolean}
  */
 export function isAcceptableDeviceFix(lat, lng) {
-  return isInServiceArea(lat, lng);
+  return isReliableGpsLatLng(lat, lng);
 }
 
 /**
- * Map center for display: live GPS when in service area, otherwise Harare fallback.
+ * Map center for display: the live fix when there is one, otherwise the Harare fallback.
  * @param {{ lat?: number, lng?: number } | null | undefined} center
  * @param {{ lat: number, lng: number }} [fallback]
  */
 export function trustedMapCenter(center, fallback = DEFAULT_MAP_FALLBACK) {
-  if (center && isInServiceArea(center.lat, center.lng)) {
+  if (center && isAcceptableDeviceFix(center.lat, center.lng)) {
     return { lat: Number(center.lat), lng: Number(center.lng) };
   }
   return { lat: fallback.lat, lng: fallback.lng };
