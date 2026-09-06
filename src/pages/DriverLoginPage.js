@@ -7,6 +7,7 @@ import {
   setRememberedDriverEmail,
 } from '../lib/driverSession';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
+import { markDriverVerified } from '../components/driver/DriverApprovalGate';
 import InGoLogo from '../components/InGoLogo';
 import { LOGIN_HERO_ART } from '../lib/ingoLogo';
 import './driverLoginPremium.css';
@@ -186,6 +187,8 @@ export default function DriverLoginPage() {
           return;
         }
         saveDriverSession(approved, { rememberMe: remember });
+        // This sign-in just read the approved row; the first screen need not ask again.
+        markDriverVerified(approved.id);
         if (remember) setRememberedDriverEmail(emailTrim);
         else setRememberedDriverEmail('');
         const from = state?.from;

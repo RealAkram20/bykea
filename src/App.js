@@ -162,7 +162,12 @@ function RootFlow() {
     setView('main');
   }, []);
 
-  if (view === 'onboarding') {
+  // The onboarding is the customer's. A signed-in driver never needs it, and on a
+  // fresh install it sat in front of a driver who had just tapped an offer
+  // notification on a killed app: the tap was parked, the driver shell that
+  // collects it mounts only under /driver, and the screen showed "Fast
+  // Deliveries / Skip" instead (emulator, 2026-09-06).
+  if (view === 'onboarding' && !isDriverSignedIn()) {
     return <OnboardingScreen onComplete={finishOnboarding} />;
   }
   // Prefer the last active portal session so reopening the app skips customer login.

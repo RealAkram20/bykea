@@ -63,9 +63,7 @@
   cursor: pointer;
 }
 .dop__close:focus-visible,
-.dop__btn:focus-visible,
-.dop__link:focus-visible,
-.dop__bidInput:focus-visible {
+.dop__btn:focus-visible {
   outline: none;
   box-shadow: var(--ingo-focus);
 }
@@ -268,37 +266,13 @@
   font-weight: 600;
 }
 
-/* Counter-offer */
-.dop__bidLbl {
-  display: block;
-  margin-bottom: 0.4rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-.dop__bidRow {
-  display: flex;
-  gap: var(--ingo-space-1);
-}
-.dop__bidInput {
-  flex: 1;
-  min-width: 0;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--ingo-border);
-  border-radius: var(--ingo-radius-sm);
-  font-size: 1rem;
-}
-
-/* Footer actions */
+/* Footer: the answers live in the shared OfferActionBar (offerActionBar.css). */
 .dop__foot {
   padding: var(--ingo-space-2) var(--ingo-space-3) calc(var(--ingo-space-3) + env(safe-area-inset-bottom, 0));
   background: var(--ingo-surface);
   border-top: 1px solid var(--ingo-border);
 }
-.dop__actions {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: var(--ingo-space-2);
-}
+/* .dop__btn remains for the state screens (declined / gone / loading). */
 .dop__btn {
   min-height: 56px;
   padding: 0.75rem 1rem;
@@ -312,51 +286,9 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-.dop__btn--accept {
-  background: var(--ingo-success);
-  color: #fff;
-}
-.dop__btn--decline {
-  background: var(--ingo-surface);
-  border-color: var(--ingo-danger);
-  color: var(--ingo-danger);
-}
 .dop__btn--primary {
   background: var(--ingo-secondary);
   color: #fff;
-}
-.dop__btn--ghost {
-  background: transparent;
-  border-color: var(--ingo-border);
-  color: var(--ingo-text);
-}
-.dop__btn--sm {
-  min-height: 44px;
-  padding: 0.5rem 0.9rem;
-  font-size: 0.95rem;
-}
-.dop__link {
-  display: block;
-  width: 100%;
-  margin-top: var(--ingo-space-2);
-  padding: 0.6rem;
-  border: 0;
-  background: transparent;
-  color: var(--ingo-secondary);
-  font-size: 0.95rem;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
-}
-.dop__link:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.dop__note {
-  margin: var(--ingo-space-1) 0 0;
-  text-align: center;
-  font-size: 0.8rem;
-  color: var(--ingo-muted);
 }
 
 /* Empty / loading / gone */

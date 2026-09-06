@@ -44,3 +44,13 @@ android/app/google-services.json
 
 # Supabase CLI working files (project-ref cache from `functions deploy`)
 supabase/.temp/
+
+# Android release signing. The upload keystore and its passwords never enter the
+# repo; android/app/build.gradle reads android/keystore.properties at build time
+# (template: android/keystore.properties.example).
+android/keystore.properties
+*.jks
+*.keystore
+
+# Public certificate of the upload key, for the Play upload-key reset form. Not secret, not repo content.
+android/*.pem

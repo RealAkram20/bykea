@@ -1,7 +1,54 @@
 import { isUnrecognizedPlaceLabel, reverseGeocodeLatLng } from './reverseGeocode';
 import { whenMedianGeolocationReady } from './medianGeolocation';
+import {
+  getLocationPermission,
+  isNativeApp,
+  readNativePosition,
+  requestLocationPermission,
+} from './nativePermissions';
 
 const GEO_LOG = '[geolocation]';
+
+/**
+ * Native app: the fused provider, asked directly. ADR 0005.
+ *
+ * The WebView's navigator.geolocation raised no permission dialog at all on this
+ * build (verified on an emulator 2026-09-06: a 10 s timeout with the app in
+ * front and no prompt), so every "Allow location" tap burned its full timers and
+ * reported "unavailable". Here the permission is requested explicitly first —
+ * no timer runs while the driver reads the dialog — and the position comes from
+ * Android's fused provider, which answers from its last known fix in well under
+ * a second when `highAccuracy` is off. A precise read follows only if that fails.
+ */
+async function readNativeGpsPosition(interactive) {
+  const perm = interactive ? await requestLocationPermission() : await getLocationPermission();
+  if (perm !== 'granted' && perm !== 'coarse') {
+    const err = new Error(perm === 'prompt' ? 'not asked' : 'denied');
+    err.code = 1;
+    throw err;
+  }
+  const t0 = Date.now();
+  try {
+    const pos = await readNativePosition({
+      highAccuracy: false,
+      timeoutMs: interactive ? 8_000 : 15_000,
+      maximumAgeMs: 60_000,
+    });
+    // Serialised, not an object: in the WebView an object logs as [object Object].
+    console.log(`${GEO_LOG} native fast fix ${JSON.stringify({ accuracy: pos.coords.accuracy, ms: Date.now() - t0 })}`);
+    return pos;
+  } catch (firstErr) {
+    if (firstErr?.code === 1) throw firstErr;
+    console.log(`${GEO_LOG} native fast fix failed ${JSON.stringify({ code: firstErr?.code, ms: Date.now() - t0 })}`);
+    const pos = await readNativePosition({
+      highAccuracy: true,
+      timeoutMs: interactive ? 12_000 : 20_000,
+      maximumAgeMs: 10_000,
+    });
+    console.log(`${GEO_LOG} native precise fix ${JSON.stringify({ accuracy: pos.coords.accuracy, ms: Date.now() - t0 })}`);
+    return pos;
+  }
+}
 
 /** Background / watch helpers — keep modest so the UI does not hang. */
 const OPT_HIGH_ACCURACY = { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 };
@@ -97,6 +144,10 @@ export async function readDeviceGpsPosition(opts = {}) {
   }
 
   const interactive = Boolean(opts.interactive);
+
+  if (isNativeApp()) {
+    return readNativeGpsPosition(interactive);
+  }
 
   if (interactive) {
     // Fast approximate first (shows permission prompt + often works indoors), then GPS refine.

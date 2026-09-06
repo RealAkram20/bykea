@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { clearDriverSession, getDriverSession } from '../lib/driverSession';
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
 import { formatVehicleTypeForDisplay } from '../lib/vehicleTypeDisplay';
+import DriverPermissionsPanel from '../components/driver/DriverPermissionsPanel';
 import './driverEarningsWalletProfile.css';
 import './driverProfilePremium.css';
 import './driverNotifications.css';
@@ -280,6 +281,8 @@ export default function DriverProfilePage() {
           <IcChevron />
         </span>
       </Link>
+
+      <DriverPermissionsPanel />
 
       <Link to="/driver/chat" className="dpr-chatBtn">
         💬 Chat with Support

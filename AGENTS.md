@@ -10,6 +10,11 @@ app. One React SPA serves four portals — customer, driver, shop owner, admin.
 
 ## 1. Three things that will bite you in the first hour
 
+**0. Start with `docs/system-map.md`, and release with `docs/deployment.md`.**
+The map says which service does which job (Supabase is the database; Firebase
+is push and hosting), where every identity and secret lives, and what is still
+unknown about the app on the store.
+
 **1. `npm start` talks to the LIVE production system.** Production Supabase, a
 Stripe `pk_live_` key and the Paynow production API are hardcoded as fallbacks
 in source, including in `.env.development`. **There is no staging.** A test
@@ -28,10 +33,12 @@ in source. This is a known, reported finding — **do not add more, and do not
 treat the existing ones as permission to add more.** Never commit a
 `service_role` key, a `sb_secret_` key or a Firebase service-account JSON.
 
-**3. `android/` in this repo is NOT the shipped app.** It is a local Capacitor
-spike used to test and measure. The Android and iOS apps on the stores are built
-from a different source. **Anything you change under `android/` ships to nobody
-unless it is re-applied where the store builds are produced.** See §5.
+**3. `android/` in this repo IS the Android app that ships, from 2026-09-05.**
+It started as a local Capacitor spike; the Play update is now built from this
+repository. The step-by-step, the upload key, the Play Console declarations and
+the one environment trap that would ship an app pointed at a test database are
+in `docs/release-android.md`. Read it before any release. iOS is not in this
+repository.
 
 ---
 
@@ -88,11 +95,15 @@ A driver must be reachable when the phone is in a pocket, asleep or locked. The
 mechanism is documented in `docs/adr/0001`, `0002` and `0003`. What matters
 operationally:
 
-**These files must be re-applied wherever the store builds are produced.** They
-are not in the store app's source:
+**The native half lives in these files.** They ship with the Play build made
+from this repo (`docs/release-android.md`); if a build is ever produced from
+anywhere else, they are what must be carried across:
 
 - `android/app/src/main/java/com/kigatta/ingo/OfferMessagingService.java`
 - `android/app/src/main/java/com/kigatta/ingo/MainActivity.java`
+- `android/app/src/main/java/com/kigatta/ingo/IngoPermissionsPlugin.java` — the
+  Permissions panel's native half: reads the channel, full-screen and battery
+  state and posts the sample offer (ADR 0005)
 - `android/app/src/main/AndroidManifest.xml` — the service declaration,
   `USE_FULL_SCREEN_INTENT`, `WAKE_LOCK`, `POST_NOTIFICATIONS`, and the location
   permissions
@@ -115,7 +126,11 @@ So: **app first, sender second.** Never the reverse.
   `android.notification.channel_id` in
   `supabase/functions/driver-offer-push/index.ts`. A mismatch is delivered on the
   default channel, silently, at ordinary importance. **Rename in both files in
-  the same commit.** (ADR 0001)
+  the same commit.** (ADR 0001) Since 2026-09-06 the Java side may post on
+  `ingo_driver_offers_2` … `_5` instead: `effectiveChannelId()` moves offers
+  to a fresh HIGH channel when the base one has been silenced or blocked on
+  the phone, because a channel cannot be raised once created. The JS constant
+  still names the base; the Permissions panel says when a move has happened.
 - **The push payload is never trusted for the offer itself.** A tap carries only
   a link and an offer key; the offer is re-fetched by the poll. This is what
   makes an order somebody else took say "no longer available" instead of showing
@@ -148,9 +163,24 @@ These are recorded, not forgotten. Do not "discover" and silently fix them.
 - **The admin portal is client-side only** (`/admin/login`) and trivially
   bypassed. It is not a security boundary; treat it as a convenience.
 - **Driver location stops updating when the app is backgrounded.** The sender
-  treats a driver as online only if `driver_live_updated_at` is under 5 minutes
-  old, so a backgrounded driver silently leaves dispatch after ~5 minutes. A
-  foreground service is the fix; it is not built.
+  treats a driver as online only if `driver_live_updated_at` is under 30
+  minutes old (5 until 2026-09-06), so a backgrounded or closed app silently
+  leaves dispatch after that. A foreground service is the fix; it is not built.
+- **The sender is never stricter than the app.** The app's poll shows every
+  open order to every online driver; the sender's 20 km radius keeps only
+  drivers near the geocoded pickup, and since 2026-09-06 rings every fresh
+  online driver when nobody is within the radius (`proximity.fallback`). A
+  driver who hears the in-app ring must also get the notification.
+- **A force-stopped app receives no push, by Android's design.** After
+  Settings → Force stop (or an OEM "swipe to kill" that force-stops), nothing
+  is delivered until the user opens the app again. A plain process kill, which
+  is what swiping from Recents does on stock Android, is fine: FCM restarts the
+  process (verified on the emulator 2026-09-06). Delivery to a freshly killed
+  process took about a minute there. The Battery row's Autostart advice is the
+  driver-facing answer.
+- **The sender does not apply the app's vehicle-capacity rule.** The app hides
+  a parcel a driver's vehicle cannot carry; the sender rings them anyway and
+  the tap ends in "no longer open". Recorded 2026-09-06, not changed.
 
 ## 7. Where to look
 

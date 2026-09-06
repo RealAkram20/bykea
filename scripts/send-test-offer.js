@@ -21,6 +21,7 @@
  *
  * USAGE
  *   node scripts/send-test-offer.js <device-token> [--stop]
+ *   OFFER_KEY=customer_delivery_orders:<uuid> node scripts/send-test-offer.js <token>
  *
  * Get <device-token> from logcat after a driver signs in:
  *   adb logcat -d | grep "push token stored"
@@ -82,7 +83,11 @@ async function getAccessToken() {
   return json.access_token;
 }
 
-const orderId = 'local-test-0001';
+// OFFER_KEY=<table>:<uuid> makes the notification's Accept / Decline act on a real
+// row in the project the app is pointed at (the same `table:id` encoding the
+// sender uses). Without it the buttons target a placeholder and the app answers
+// "no longer available", which still proves delivery and rendering.
+const orderId = process.env.OFFER_KEY || 'local-test-0001';
 const tag = `ingo-offer-${orderId}`;
 
 /** Mirrors sendRing() in the edge function. */

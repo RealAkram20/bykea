@@ -145,8 +145,11 @@ export default function RequestDeliveryPage() {
         /* keep km null */
       }
     }
+    // Unknown stays unknown (null). The estimate page then tries its own geocode
+    // and, if that fails too, says so next to the price instead of pricing a
+    // silently invented 4.2 km.
     const distanceKm =
-      km != null && Number.isFinite(km) && km > 0 ? Math.round(km * 100) / 100 : 4.2;
+      km != null && Number.isFinite(km) && km > 0 ? Math.round(km * 100) / 100 : null;
     navigate('/package-details', {
       state: { pickup, stops, distanceKm },
     });

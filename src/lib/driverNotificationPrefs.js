@@ -11,7 +11,9 @@ const CACHE_PREFIX = 'ingo_driver_notif_prefs:';
 export const DEFAULT_DRIVER_NOTIF_PREFS = /** @type {DriverNotifPrefs} */ ({
   new_offers: true,
   offer_sound: true,
-  push_when_closed: false,
+  // Matches the database default (true). It was false here until 2026-09-06,
+  // and the sender treated a saved false as "never push to this driver".
+  push_when_closed: true,
 });
 
 function cacheKey(driverId) {

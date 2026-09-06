@@ -68,13 +68,37 @@ export function isValidBidAmount(amount, minimum) {
 }
 
 /**
+ * Money to the cent. This used to snap to 0.50 steps, which turned a driver's
+ * Accept at the customer's $4.20 into $4.00 and then refused it against its own
+ * $4.20 floor ("Bid must be at least 4.20", seen on a phone 2026-09-06). Any
+ * amount not on a half-dollar failed the same way.
+ *
+ * The fare columns are plain `numeric` and `numeric(12,4)`, so the database
+ * keeps whatever it is given; nothing rounds for us. Every amount this module
+ * writes goes through here first, and the floor it compares against is rounded
+ * the same way (`bidFloor`), so a bid and its floor are always two cent values
+ * and "at least the floor" means what the screen shows.
  * @param {number} amount
- * @param {number} [step=0.5]
+ * @param {number} [step=0.01]
  */
-export function roundBidAmount(amount, step = 0.5) {
+export function roundBidAmount(amount, step = 0.01) {
   const n = Number(amount);
   if (!Number.isFinite(n) || n <= 0) return step;
-  return Math.round(n / step) * step;
+  // Integer arithmetic on cents avoids 4.2 / 0.01 = 420.00000000000006, and the
+  // epsilon keeps 1.005 from landing on 100.49999999999999 and rounding down.
+  const factor = Math.round(1 / step);
+  return Math.round((n + Number.EPSILON) * factor) / factor;
+}
+
+/**
+ * The floor a bid must meet, in cents. Orders created before 2026-09-06 carry
+ * unrounded sums such as 4.31495 in `minimum_fare_amount`; the customer sees
+ * "$4.31" and so must the rule. Rounding to the nearest cent matches the
+ * display; it never rounds a floor of exactly x.xx5 up past what was shown.
+ * @param {Record<string, unknown> | null | undefined} row
+ */
+export function bidFloor(row) {
+  return roundBidAmount(Math.max(getMinimumFare(row), getCustomerOfferAmount(row)));
 }
 
 /**
@@ -261,10 +285,8 @@ export async function driverPlaceBid(supabase, table, bookingId, driverId, amoun
   if (!row) return { ok: false, error: 'Booking not found.' };
   if (row.assigned_driver_id) return { ok: false, taken: true, error: ORDER_ALREADY_ACCEPTED_MSG };
 
-  const minimum = getMinimumFare(row);
-  const currentOffer = getCustomerOfferAmount(row);
+  const floor = bidFloor(row);
   const bid = roundBidAmount(amount);
-  const floor = Math.max(minimum, currentOffer);
   if (!isValidBidAmount(bid, floor)) {
     return { ok: false, error: `Bid must be at least ${floor.toFixed(2)}.` };
   }
@@ -417,10 +439,8 @@ export async function customerRaiseOffer(supabase, table, bookingId, appUserId, 
   }
   if (row.assigned_driver_id) return { ok: false, error: 'A driver is already assigned.' };
 
-  const minimum = getMinimumFare(row);
-  const current = getCustomerOfferAmount(row);
+  const floor = bidFloor(row);
   const bid = roundBidAmount(amount);
-  const floor = Math.max(minimum, current);
   if (!isValidBidAmount(bid, floor)) {
     return { ok: false, error: `Offer must be at least ${floor.toFixed(2)}.` };
   }

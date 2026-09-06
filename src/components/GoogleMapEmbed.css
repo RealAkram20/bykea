@@ -32,6 +32,36 @@
   background: #e8eef2;
 }
 
+/* Shown instead of the frame while the phone has no connection. Tokens from src/index.css. */
+.gmap-embed-wrap--offline {
+  pointer-events: none;
+}
+
+.gmap-embed-offline {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 1rem;
+  text-align: center;
+  background: var(--ingo-surface-alt, #f4f6fa);
+  color: var(--ingo-muted, #5b6472);
+}
+
+.gmap-embed-offline__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ingo-text, #1a1a1a);
+}
+
+.gmap-embed-offline__text {
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
 /* Hide decorative overlays when a live embed is shown (customer home uses CustomerApp.css) */
 .flow-map--gmap::after {
   display: none;

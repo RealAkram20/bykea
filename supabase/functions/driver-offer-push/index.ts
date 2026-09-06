@@ -38,7 +38,16 @@ const TABLES = new Set([
   'shop_customer_orders',
 ]);
 
-const NEARBY_FRESH_MS = 5 * 60 * 1000;
+// How old a driver's last published position may be and still count them as
+// reachable. The app publishes every 15 s only while its WebView is alive; a
+// killed app publishes nothing, and push exists precisely to reach that phone.
+// At 5 minutes (until 2026-09-06) a driver who closed the app was silently out
+// of dispatch five minutes later — the opposite of what push is for. 30 minutes
+// matches how long an open request keeps ringing in the app. A driver who
+// forgot to go offline gets a notification they can decline; a driver whose
+// app was closed gets the ring they were promised. The foreground service that
+// would make this exact is still not built (AGENTS.md §6).
+const NEARBY_FRESH_MS = 30 * 60 * 1000;
 const NEARBY_RADIUS_KM = 20;
 
 type ServiceAccount = {
@@ -548,15 +557,48 @@ Deno.serve(async (req) => {
   const payload = { title, body: bodyText || 'Open the app to accept or reject.', tag, link, offerKey };
 
   const cutoff = new Date(Date.now() - NEARBY_FRESH_MS).toISOString();
-  const { data: drivers, error: drvErr } = await supabase
-    .from('driver_registrations')
-    .select('id, driver_live_lat, driver_live_lng, driver_live_updated_at, is_online, vehicle_type')
-    .eq('status', 'approved')
-    .eq('is_online', true)
-    .gte('driver_live_updated_at', cutoff)
-    .limit(200);
+  // `driver_live_updated_at` is written only with a real fix (nearbyDrivers.js
+  // publishDriverOnlineLocation): an online driver who has never had one keeps
+  // it null and would never be rung, however many times the app says "online".
+  // Null is "no position yet", not "gone"; going offline clears `is_online`.
+  type DriverRow = Record<string, unknown> & { id: string | number };
+  let drivers: DriverRow[] | null = null;
+  let drvErr: { message?: string } | null = null;
+  {
+    const res = await supabase
+      .from('driver_registrations')
+      .select('id, driver_live_lat, driver_live_lng, driver_live_updated_at, is_online, vehicle_type')
+      .eq('status', 'approved')
+      .eq('is_online', true)
+      .or(`driver_live_updated_at.gte.${cutoff},driver_live_updated_at.is.null`)
+      .limit(200);
+    drivers = res.data as DriverRow[] | null;
+    drvErr = res.error;
+  }
 
-  if (drvErr) return json({ ok: false, error: drvErr.message }, 500);
+  // Production ran without supabase/driver_online_location.sql until 2026-09-06:
+  // `driver_registrations.driver_live_lat does not exist`, and every real ring
+  // answered 500 while the zero-uuid probes (which stop at the row lookup)
+  // said the function was fine. A missing column must not silence dispatch:
+  // ring every online approved driver, say which migration is missing, and if
+  // even `is_online` is absent, say so instead of guessing.
+  let schemaGap = '';
+  if (drvErr && /driver_live_(lat|lng|updated_at)/.test(drvErr.message || '')) {
+    schemaGap = 'run supabase/driver_online_location.sql on this project';
+    console.error(`[driver-offer-push] ${drvErr.message} — ${schemaGap}; ringing every online driver without a radius`);
+    const res = await supabase
+      .from('driver_registrations')
+      .select('id, is_online, vehicle_type')
+      .eq('status', 'approved')
+      .eq('is_online', true)
+      .limit(200);
+    drivers = res.data as DriverRow[] | null;
+    drvErr = res.error;
+  }
+  if (drvErr) {
+    const hint = /is_online/.test(drvErr.message || '') ? 'run supabase/driver_online_location.sql on this project' : schemaGap;
+    return json({ ok: false, error: drvErr.message, hint: hint || undefined }, 500);
+  }
 
   let driverIds = (drivers || []).map((d) => String(d.id));
 
@@ -579,17 +621,32 @@ Deno.serve(async (req) => {
     }
   }
   if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng) && drivers?.length) {
-    driverIds = drivers
-      .filter((d) => {
-        const dist = haversineKm(
-          pickupLat,
-          pickupLng,
-          Number(d.driver_live_lat),
-          Number(d.driver_live_lng),
-        );
-        return dist != null && dist <= NEARBY_RADIUS_KM;
-      })
-      .map((d) => String(d.id));
+    const near = drivers.filter((d) => {
+      // `Number(null)` is 0, a real point in the Gulf of Guinea; a row with no
+      // fix must become null here, not a distance to (0, 0).
+      const hasFix = d.driver_live_lat != null && d.driver_live_lng != null;
+      const dist = hasFix
+        ? haversineKm(pickupLat, pickupLng, Number(d.driver_live_lat), Number(d.driver_live_lng))
+        : null;
+      // No published fix is "unknown", not "far": keep the driver.
+      return dist == null || dist <= NEARBY_RADIUS_KM;
+    });
+    if (near.length) {
+      driverIds = near.map((d) => String(d.id));
+    } else {
+      // Nobody within the radius, but drivers are online. Either the pickup text
+      // geocoded to the wrong place (a bare "CBD", a suburb name that exists in
+      // two countries) or the fleet is simply elsewhere. The app's own poll shows
+      // this order to every online driver regardless, so the push must never be
+      // the stricter of the two: a driver who hears the in-app ring and gets no
+      // notification reads it as "push is broken" (2026-09-06, a real phone).
+      // Ring them all and say so; the app shows the distance, or "unknown", and
+      // the driver declines.
+      proximity = { ...proximity, fallback: 'all_online', online: drivers.length };
+      console.warn(
+        `[driver-offer-push] no driver within ${NEARBY_RADIUS_KM} km of the pickup; ringing all ${drivers.length} fresh online drivers`,
+      );
+    }
   }
 
   if (!driverIds.length) {
@@ -601,8 +658,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Respect Profile → Notifications: skip drivers who turned off offers or closed-app push.
-  // Missing prefs row = all enabled (defaults).
+  // Respect Profile → Notifications: skip drivers who turned new offers off.
+  // Missing prefs row = enabled.
+  //
+  // `push_when_closed` is deliberately NOT honoured here (since 2026-09-06). The
+  // app's client default for it was `false`, and saving any toggle on the
+  // Notifications page upserted the whole row, so one tap on "offer sound"
+  // silently switched every push off for that driver for good — while the
+  // in-app poll kept ringing them. The sender cannot know whether the app is
+  // closed, so the only honest reading of that switch is none at all.
   {
     const { data: prefRows, error: prefErr } = await supabase
       .from('driver_notification_prefs')
@@ -617,7 +681,7 @@ Deno.serve(async (req) => {
     } else if (prefRows?.length) {
       const blocked = new Set(
         prefRows
-          .filter((p) => p.new_offers === false || p.push_when_closed === false)
+          .filter((p) => p.new_offers === false)
           .map((p) => String(p.driver_id)),
       );
       driverIds = driverIds.filter((id) => !blocked.has(String(id)));
@@ -649,18 +713,29 @@ Deno.serve(async (req) => {
   }
 
   let sent = 0;
+  let failed = 0;
   const invalidTokens: string[] = [];
   for (const token of tokens) {
-    const result = sa
-      ? await sendFcmV1(projectId, accessToken, token, payload)
-      : await sendFcmLegacy(legacyKey, token, payload);
-    if (result.ok) sent += 1;
-    else if (result.invalid) invalidTokens.push(token);
+    // One phone's send must never take the others down with it. A transient
+    // network failure to FCM used to throw out of this loop and answer 500
+    // with nobody rung (seen 2026-09-06, a DNS blip); now it is counted and
+    // the next token is tried.
+    try {
+      const result = sa
+        ? await sendFcmV1(projectId, accessToken, token, payload)
+        : await sendFcmLegacy(legacyKey, token, payload);
+      if (result.ok) sent += 1;
+      else if (result.invalid) invalidTokens.push(token);
+      else failed += 1;
+    } catch (e) {
+      failed += 1;
+      console.warn(`[driver-offer-push] send failed: ${(e as Error)?.message || e}`);
+    }
   }
 
   if (invalidTokens.length) {
     await supabase.from('driver_push_tokens').delete().in('fcm_token', invalidTokens);
   }
 
-  return json({ ok: true, action: 'ring', sent, drivers: driverIds.length, tokens: tokens.length, kind, table, orderId, proximity });
+  return json({ ok: true, action: 'ring', sent, failed, drivers: driverIds.length, tokens: tokens.length, kind, table, orderId, proximity, schemaGap: schemaGap || undefined });
 });

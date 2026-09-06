@@ -1302,16 +1302,6 @@
   background: linear-gradient(90deg, #f97316 0%, #dc2626 100%);
 }
 
-.dh-offerCard__actions {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  width: 100%;
-  margin-top: 0.1rem;
-  padding-top: 0.05rem;
-}
-
 .dh-offerCard__minBid {
   margin: 0.15rem 0 0;
   font-size: 0.72rem;
@@ -1422,93 +1412,6 @@
 
 .dh-acceptedCard__btn:hover {
   background: #f0fff6;
-}
-
-.dh-offerCard__bidForm {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  margin-top: 0.35rem;
-}
-
-.dh-offerCard__bidLbl {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #374151;
-}
-
-.dh-offerCard__bidInput {
-  width: 100%;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 700;
-  box-sizing: border-box;
-}
-
-.dh-offerCard__btn--bidOpen {
-  border: 1.5px solid #07408f;
-  background: #fff;
-  color: #07408f;
-}
-
-.dh-offerCard__btn--bid {
-  border: none;
-  background: #07408f;
-  color: #fff;
-  width: 100%;
-  flex: 1 1 100%;
-}
-
-.dh-offerCard__btn {
-  flex: 1 1 0;
-  min-height: 2.65rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 12px;
-  font: inherit;
-  font-weight: 800;
-  font-size: 0.84rem;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    transform 0.08s ease,
-    box-shadow 0.12s ease;
-}
-
-.dh-offerCard__btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.dh-offerCard__btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.dh-offerCard__btn--acc {
-  border: none;
-  color: #fff;
-  background: linear-gradient(180deg, #ff9f4a 0%, #f18631 40%, #e07828 100%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.35) inset,
-    0 4px 12px rgba(241, 134, 49, 0.38);
-}
-
-.dh-offerCard__btn--acc:not(:disabled):hover {
-  filter: brightness(1.03);
-}
-
-.dh-offerCard__btn--rej {
-  border: 1.5px solid #fecaca;
-  background: #fff;
-  color: #b91c1c;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-
-.dh-offerCard__btn--rej:not(:disabled):hover {
-  background: #fef2f2;
-  border-color: #fca5a5;
 }
 
 .dh-addrLbl {

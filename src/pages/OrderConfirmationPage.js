@@ -98,8 +98,9 @@ export default function OrderConfirmationPage() {
     () => order.placedAt || new Date().toISOString(),
     [order.placedAt],
   );
-  const from = order.from || 'Stratford, London E15';
-  const to = order.to || 'Oxford Street, London W1';
+  // Never a placeholder street: a missing address is shown as missing.
+  const from = order.from || '—';
+  const to = order.to || '—';
   const deliveryType = order.deliveryTitle || 'Delivery';
   const eta = order.eta || '45 - 60 mins';
   const price =

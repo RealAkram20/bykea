@@ -5,6 +5,7 @@
   "dependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/geolocation": "^8.2.2",
     "@capacitor/push-notifications": "^8.1.2",
     "@stripe/react-stripe-js": "^3.10.0",
     "@stripe/stripe-js": "^4.10.0",

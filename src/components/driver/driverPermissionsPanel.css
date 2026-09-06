@@ -1,0 +1,143 @@
+/* Permissions panel on the driver Profile. Tokens from src/index.css. */
+
+.dpp {
+  margin: 0 0 1rem;
+}
+
+.dpp__h {
+  margin: 0 0 0.5rem 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ingo-muted, #5b6472);
+}
+
+.dpp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0 0 0.6rem;
+  padding: 0.8rem 1rem;
+  background: var(--ingo-surface, #fff);
+  border: 1px solid var(--ingo-border, #e2e7ef);
+  border-radius: var(--ingo-radius, 14px);
+  box-sizing: border-box;
+}
+
+.dpp-row--test {
+  background: var(--ingo-surface-alt, #f4f6fa);
+  border-style: dashed;
+}
+
+.dpp-row__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dpp-row__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dpp-row__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ingo-text, #1a1a1a);
+}
+
+.dpp-row__sub {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--ingo-muted, #5b6472);
+}
+
+.dpp-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.dpp-pill--ok {
+  background: var(--ingo-success-soft, #e7f6ec);
+  color: var(--ingo-success, #1a8f4a);
+}
+
+.dpp-pill--warn {
+  background: var(--ingo-warning-soft, #fff4e5);
+  color: var(--ingo-warning, #b45309);
+}
+
+.dpp-pill--off {
+  background: var(--ingo-danger-soft, #fdecea);
+  color: var(--ingo-danger, #d33a2f);
+}
+
+.dpp-pill--unknown {
+  background: var(--ingo-surface-alt, #f4f6fa);
+  color: var(--ingo-muted, #5b6472);
+}
+
+.dpp-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: var(--ingo-secondary, #0a58a6);
+  color: #fff;
+  white-space: nowrap;
+  text-decoration: none; /* the same class on a <Link> */
+  cursor: pointer;
+}
+
+.dpp-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dpp-btn:focus-visible {
+  outline: 3px solid rgba(var(--ingo-secondary-rgb, 10, 88, 166), 0.45);
+  outline-offset: 2px;
+}
+
+.dpp-btn--ghost {
+  background: rgba(var(--ingo-secondary-rgb, 10, 88, 166), 0.1);
+  color: var(--ingo-secondary, #0a58a6);
+}
+
+/* Home-screen pointer when something above would keep an offer silent. */
+.dpp-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.85rem;
+  padding: 0.75rem 1rem;
+  background: var(--ingo-warning-soft, #fff4e5);
+  border: 1px solid var(--ingo-warning, #b45309);
+  border-radius: var(--ingo-radius, 14px);
+  color: var(--ingo-warning, #b45309);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.dpp-alert__title {
+  display: block;
+  font-weight: 700;
+}
+
+.dpp-alert__cta {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--ingo-secondary, #0a58a6);
+}

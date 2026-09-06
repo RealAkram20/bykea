@@ -178,6 +178,16 @@ function teardownRing(offerKey, opts = {}) {
 }
 
 /**
+ * Keys of every ring currently sounding, whoever started it (the offers
+ * provider's own loop, or a push through notifyDriverNewOffer). The provider
+ * uses this to stop a ring for an offer that vanished from its list.
+ * @returns {string[]}
+ */
+export function getActiveDriverOfferRingKeys() {
+  return [...activeRings.keys()];
+}
+
+/**
  * Stop ringing for one offer (or all). Driven by backend offer lifecycle.
  * @param {string} [offerKey]
  */

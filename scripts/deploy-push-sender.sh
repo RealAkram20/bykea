@@ -9,7 +9,9 @@
 #   <project-ref>          e.g. gcwrnluyaqarmrovbryj  (throwaway) — NOT the client's
 #                          production ref unless that is deliberately intended.
 #   SUPABASE_ACCESS_TOKEN  Dashboard → avatar → Account → Access Tokens. Account-wide;
-#                          treat as a password and rotate after use.
+#                          treat as a password and rotate after use. Optional when
+#                          `npx supabase login` has been run on this machine.
+#   PUBLIC_APP_URL         optional; the site a web-push click opens.
 #
 # Reads .secrets/fcm-service-account.json for FIREBASE_PROJECT_ID and
 # FIREBASE_SERVICE_ACCOUNT_JSON — the exact names the function reads via Deno.env.
@@ -22,7 +24,11 @@ set -euo pipefail
 
 REF="${1:-}"
 [ -n "$REF" ] || { echo "usage: SUPABASE_ACCESS_TOKEN=... $0 <project-ref>"; exit 1; }
-[ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || { echo "SUPABASE_ACCESS_TOKEN is not set"; exit 1; }
+# Either an access token in the environment (CI) or a stored `npx supabase login`
+# (a developer's machine: ~/.supabase/access-token, or %APPDATA%\supabase on Windows).
+if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] && [ ! -f "$HOME/.supabase/access-token" ] && [ ! -f "${APPDATA:-/nonexistent}/supabase/access-token" ]; then
+  echo "SUPABASE_ACCESS_TOKEN is not set and no stored login found: run 'npx supabase login' first"; exit 1
+fi
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SA="$HERE/.secrets/fcm-service-account.json"
@@ -46,9 +52,13 @@ npx supabase functions deploy driver-offer-push \
 FIREBASE_SA_ONELINE="$(node -e "process.stdout.write(JSON.stringify(JSON.parse(require('fs').readFileSync(0,'utf8'))))" < "$SA")"
 
 echo "→ setting sender secrets on $REF"
+# PUBLIC_APP_URL is where a web-push click lands (e.g. https://ingo-92d5f.web.app).
+# Optional; passed through only when set, so a throwaway deploy is never pointed
+# at the production site by accident.
 npx supabase secrets set --project-ref "$REF" \
   FIREBASE_PROJECT_ID="$FIREBASE_PROJECT_ID" \
-  FIREBASE_SERVICE_ACCOUNT_JSON="$FIREBASE_SA_ONELINE"
+  FIREBASE_SERVICE_ACCOUNT_JSON="$FIREBASE_SA_ONELINE" \
+  ${PUBLIC_APP_URL:+PUBLIC_APP_URL="$PUBLIC_APP_URL"}
 
 echo "→ done. Smoke test (expects a JSON body, not a 401):"
 echo "   curl -s -X POST https://$REF.supabase.co/functions/v1/driver-offer-push \\"

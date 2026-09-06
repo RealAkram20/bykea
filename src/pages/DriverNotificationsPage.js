@@ -96,7 +96,12 @@ export default function DriverNotificationsPage() {
       setMessage('');
       setError('');
 
-      const patch = { [key]: value, push_when_closed: false };
+      // `push_when_closed` used to be pinned to false on every save, and the
+      // sender then refused to push to any driver whose row said so — one tap
+      // on "offer sound" switched every notification off for good (2026-09-06).
+      // The sender no longer reads the flag; the row now says what is true:
+      // offers are pushed whenever new offers are on.
+      const patch = { [key]: value, push_when_closed: true };
       if (key === 'new_offers' && value === false) {
         patch.offer_sound = false;
       }
@@ -105,7 +110,7 @@ export default function DriverNotificationsPage() {
       }
 
       const { prefs: next, error: err } = await saveDriverNotifPrefs(driverId, patch);
-      setPrefs({ ...next, push_when_closed: false });
+      setPrefs({ ...next, push_when_closed: next.new_offers });
       if (err) setError(err);
       else setMessage('Saved.');
       setSavingKey('');

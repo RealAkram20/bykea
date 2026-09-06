@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { findOfferForKey, useDriverOffers } from '../components/driver/DriverOffersProvider';
 import { useOfferActions } from '../components/driver/useOfferActions';
 import { BID_TABLES, kindLabel, OfferPinDrop, OfferPinPickup } from '../components/driver/offerPresentation';
+import OfferActionBar from '../components/driver/OfferActionBar';
 import {
   formatOfferTime,
   isCashCustomerPayment,
@@ -277,64 +278,29 @@ export default function DriverOfferPage() {
           </p>
         ) : null}
 
-        {canBid && bidModeKey === k ? (
-          <section className="dop__card dop__bid" aria-label="Counter-offer">
-            <label className="dop__bidLbl" htmlFor="dop-bid">
-              Your counter-offer (minimum {formatGBP(Math.max(offer.minimumAmount || 0, offer.amount))})
-            </label>
-            <div className="dop__bidRow">
-              <input
-                id="dop-bid"
-                type="number"
-                inputMode="decimal"
-                step="0.5"
-                min={Math.max(offer.minimumAmount || 0, offer.amount)}
-                className="dop__bidInput"
-                value={bidDraft}
-                onChange={(e) => setBidDraft(e.target.value)}
-              />
-              <button
-                type="button"
-                className="dop__btn dop__btn--primary dop__btn--sm"
-                disabled={busy || expired}
-                onClick={() => bid(offer)}
-              >
-                {busy ? 'Sending…' : 'Send'}
-              </button>
-              <button type="button" className="dop__btn dop__btn--ghost dop__btn--sm" onClick={() => setBidModeKey('')}>
-                Cancel
-              </button>
-            </div>
-          </section>
-        ) : null}
       </div>
 
       <footer className="dop__foot">
-        <div className="dop__actions" role="group" aria-label="Accept or decline">
-          <button type="button" className="dop__btn dop__btn--decline" disabled={busy || expired} onClick={onDecline}>
-            {busy ? 'Working…' : 'Decline'}
-          </button>
-          <button type="button" className="dop__btn dop__btn--accept" disabled={busy || expired} onClick={() => accept(offer)}>
-            {busy ? 'Working…' : `Accept ${formatGBP(offer.amount)}`}
-          </button>
-        </div>
-        {canBid && bidModeKey !== k ? (
-          <button
-            type="button"
-            className="dop__link"
-            disabled={busy || expired}
-            onClick={() => {
-              const floor = Math.max(offer.amount, myBids[k] || 0);
-              setBidModeKey(k);
-              setBidDraft(String((floor + 0.5).toFixed(2)));
-            }}
-          >
-            {myBids[k] != null ? 'Raise your offer' : 'Counter-offer a higher price'}
-          </button>
-        ) : null}
-        {canBid ? (
-          <p className="dop__note">Accept sends your offer at the customer's price. The customer confirms the driver.</p>
-        ) : null}
+        <OfferActionBar
+          offer={offer}
+          canBid={canBid}
+          busy={busy}
+          disabled={expired}
+          myBid={myBids[k] ?? null}
+          bidOpen={bidModeKey === k}
+          bidDraft={bidDraft}
+          onBidDraftChange={setBidDraft}
+          onOpenBid={() => {
+            const floor = Math.max(offer.amount, myBids[k] || 0);
+            setBidModeKey(k);
+            setBidDraft(String((floor + 0.5).toFixed(2)));
+          }}
+          onCloseBid={() => setBidModeKey('')}
+          onSendBid={() => bid(offer)}
+          onAccept={() => accept(offer)}
+          onDecline={onDecline}
+          inputId="dop-bid"
+        />
       </footer>
     </div>
   );

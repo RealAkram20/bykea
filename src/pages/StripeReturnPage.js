@@ -8,6 +8,14 @@ import {
   takeStripeHostedReturnContext,
 } from '../lib/stripeEdge';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { notifyDriversOfNewOffer } from '../lib/driverOfferPushNotify';
+
+/** The booking table the sender rings for each Stripe order kind; shop orders ring when the shop marks them ready. */
+const RING_TABLE_BY_KIND = {
+  delivery: 'customer_delivery_orders',
+  taxi: 'taxi_bookings',
+  tuk: 'tuk_tuk_bookings',
+};
 
 export default function StripeReturnPage() {
   const [searchParams] = useSearchParams();
@@ -37,6 +45,15 @@ export default function StripeReturnPage() {
         setErr(fin.error || 'Could not confirm payment.');
         setBusy(false);
         return;
+      }
+
+      // A card-paid delivery or ride never rang a driver: the booking pages ring
+      // only for cash and wallet, and nothing rang once the card cleared (found
+      // 2026-09-06). From here the order is `paid`, the status the sender
+      // accepts. Skipped on a reload of an already-paid session.
+      const ringTable = RING_TABLE_BY_KIND[String(fin.orderKind || '')];
+      if (ringTable && fin.orderId && !fin.alreadyPaid) {
+        notifyDriversOfNewOffer(ringTable, String(fin.orderId));
       }
 
       const ctx = takeStripeHostedReturnContext();

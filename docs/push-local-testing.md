@@ -177,6 +177,17 @@ console actions or deploys on infrastructure the client owns:
    `select count(*) from driver_push_tokens` — if it is still zero a week later,
    registration is not running in the shipped build.
 
+## `invalid_grant` means the key is gone, not the code
+
+If the deployed sender answers `Google auth failed: invalid_grant`, or
+`send-test-offer.js` prints `invalid_grant: Invalid JWT Signature`, the
+service-account private key has been deleted or rotated in the Firebase
+console. Nothing in the app or the function is wrong. Generate a new key
+(Project settings → Service accounts → Generate new private key), save it as
+`.secrets/fcm-service-account.json`, and re-set the function secret with
+`scripts/deploy-push-sender.sh`. Seen 2026-09-06 after the 2026-09-03 key was
+revoked as planned.
+
 ## The crash you must know about
 
 **Driver sign-in crashes the app if `google-services.json` is missing.** Not
@@ -235,6 +246,9 @@ What to check, in this order:
 
 `scripts/send-test-offer.js` sends the same data-only shape, so Part 1 can be
 run without a Supabase project and still shows the buttons.
+With `OFFER_KEY=<table>:<uuid>` (2026-09-06) the buttons act on a real row in
+whichever project the app is pointed at, so Accept can be proven against the
+database without deploying the sender.
 
 Two things this pass fixed on the way, both worth knowing:
 

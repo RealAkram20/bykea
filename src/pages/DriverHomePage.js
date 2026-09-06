@@ -14,7 +14,7 @@ import {
   OFFER_RING_CYCLE_MS,
 } from '../lib/driverIncomingBookings';
 import { useOfferActions } from '../components/driver/useOfferActions';
-import { kindLabel, OfferPinDrop, OfferPinPickup } from '../components/driver/offerPresentation';
+import { BID_TABLES, kindLabel, OfferPinDrop, OfferPinPickup } from '../components/driver/offerPresentation';
 import { readLastDeviceFix } from '../hooks/useLiveLocation';
 import { formatDistanceKm, sortOffersByDistance, useOfferDistances } from '../lib/offerProximity';
 import { formatGBP } from '../lib/currency';
@@ -23,6 +23,7 @@ import { unlockDriverOfferAudio } from '../lib/driverOfferRing';
 import CarIcon from '../components/icons/CarIcon';
 import { LOGIN_HERO_ART } from '../lib/ingoLogo';
 import DriverPermissionPrompts from '../components/driver/DriverPermissionPrompts';
+import OfferActionBar from '../components/driver/OfferActionBar';
 import './driverPortal.css';
 import './driverHomePremium.css';
 
@@ -433,33 +434,6 @@ export default function DriverHomePage() {
                   </div>
                 ) : null}
 
-                {bidModeKey === k &&
-                ['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'].includes(offer.table) ? (
-                  <div className="dh-offerCard__bidForm">
-                    <label className="dh-offerCard__bidLbl" htmlFor={`bid-${k}`}>
-                      Your counter-offer (min {formatGBP(Math.max(offer.minimumAmount || 0, offer.amount))})
-                    </label>
-                    <input
-                      id={`bid-${k}`}
-                      type="number"
-                      step="0.5"
-                      min={Math.max(offer.minimumAmount || 0, offer.amount)}
-                      className="dh-offerCard__bidInput"
-                      value={bidDraft}
-                      onChange={(e) => setBidDraft(e.target.value)}
-                      placeholder={String((offer.amount + 0.5).toFixed(2))}
-                    />
-                    <button
-                      type="button"
-                      className="dh-offerCard__btn dh-offerCard__btn--bid"
-                      disabled={busy || secLeft <= 0}
-                      onClick={() => onBid(offer)}
-                    >
-                      {busy ? '…' : 'Send bid'}
-                    </button>
-                  </div>
-                ) : null}
-
                 <div className={`dh-offerCard__timer${urgent ? ' dh-offerCard__timer--urgent' : ''}`}>
                   <span className="dh-offerCard__timerTxt">Respond in {secLeft}s</span>
                   <div className="dh-offerCard__pb" aria-hidden>
@@ -467,37 +441,26 @@ export default function DriverHomePage() {
                   </div>
                 </div>
 
-                <div className="dh-offerCard__actions" role="group" aria-label="Offer, bid, or reject">
-                  <button
-                    type="button"
-                    className="dh-offerCard__btn dh-offerCard__btn--acc"
-                    disabled={busy || secLeft <= 0}
-                    onClick={() => onAccept(offer)}
-                  >
-                    {busy
-                      ? '…'
-                      : ['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'].includes(offer.table)
-                        ? `Offer ${formatGBP(offer.amount)}`
-                        : `Accept ${formatGBP(offer.amount)}`}
-                  </button>
-                  {['customer_delivery_orders', 'taxi_bookings', 'tuk_tuk_bookings'].includes(offer.table) ? (
-                    <button
-                      type="button"
-                      className="dh-offerCard__btn dh-offerCard__btn--bidOpen"
-                      disabled={busy || secLeft <= 0}
-                      onClick={() => {
-                        const floor = Math.max(offer.amount, myBids[k] || 0);
-                        setBidModeKey(k);
-                        setBidDraft(String((floor + 0.5).toFixed(2)));
-                      }}
-                    >
-                      {myBids[k] != null ? 'Raise bid' : 'Bid higher'}
-                    </button>
-                  ) : null}
-                  <button type="button" className="dh-offerCard__btn dh-offerCard__btn--rej" disabled={busy || secLeft <= 0} onClick={() => onReject(offer)}>
-                    Reject
-                  </button>
-                </div>
+                <OfferActionBar
+                  offer={offer}
+                  canBid={BID_TABLES.includes(offer.table)}
+                  busy={busy}
+                  disabled={secLeft <= 0}
+                  myBid={myBids[k] ?? null}
+                  bidOpen={bidModeKey === k}
+                  bidDraft={bidDraft}
+                  onBidDraftChange={setBidDraft}
+                  onOpenBid={() => {
+                    const floor = Math.max(offer.amount, myBids[k] || 0);
+                    setBidModeKey(k);
+                    setBidDraft(String((floor + 0.5).toFixed(2)));
+                  }}
+                  onCloseBid={() => setBidModeKey('')}
+                  onSendBid={() => onBid(offer)}
+                  onAccept={() => onAccept(offer)}
+                  onDecline={() => onReject(offer)}
+                  inputId={`bid-${k}`}
+                />
               </div>
             );
           })}

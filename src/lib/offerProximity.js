@@ -128,12 +128,22 @@ export async function geocodePickupCached(address, geocoder = forwardGeocodeAddr
   return p;
 }
 
-/** Km between two points, or null when either is unusable. */
+/**
+ * Beyond this a "distance to pickup" is not a distance, it is a geocoder that
+ * matched the wrong place: a country-biased lookup of "Stratford, London E15"
+ * landed in Zimbabwe and a driver in Kampala was told the pickup was 2193 km
+ * away (2026-09-06). The sender's own radius is 20 km; nothing legitimate is
+ * hundreds of km off. Unknown is the honest answer, and the screen says so.
+ */
+export const MAX_PLAUSIBLE_PICKUP_KM = 500;
+
+/** Km between two points, or null when either is unusable or the result is implausible. */
 export function distanceKm(from, to) {
   if (!from || !to) return null;
   if (!isReliableGpsLatLng(from.lat, from.lng) || !isReliableGpsLatLng(to.lat, to.lng)) return null;
   const km = haversineKm(from.lat, from.lng, to.lat, to.lng);
-  return Number.isFinite(km) ? km : null;
+  if (!Number.isFinite(km)) return null;
+  return km > MAX_PLAUSIBLE_PICKUP_KM ? null : km;
 }
 
 /** "850 m", "1.2 km", "12 km"; '' when unknown. Never rounds an unknown to zero. */

@@ -28,7 +28,7 @@ import {
   setDriverOnlinePreference,
 } from '../../lib/driverSession';
 import { fetchDriverNotifPrefs, readCachedDriverNotifPrefs } from '../../lib/driverNotificationPrefs';
-import { playDriverNewOfferRing, unlockDriverOfferAudio, notifyDriverNewOffer, startDriverOfferRing, stopDriverOfferRing, stopAllDriverOfferRings, handleDriverOfferStopSignal } from '../../lib/driverOfferRing';
+import { playDriverNewOfferRing, unlockDriverOfferAudio, notifyDriverNewOffer, startDriverOfferRing, stopDriverOfferRing, stopAllDriverOfferRings, handleDriverOfferStopSignal, getActiveDriverOfferRingKeys } from '../../lib/driverOfferRing';
 import { ORDER_ALREADY_ACCEPTED_MSG } from '../../lib/claimOpenBooking';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
 import { publishDriverOnlineLocation } from '../../lib/nearbyDrivers';
@@ -165,8 +165,11 @@ export function DriverOffersProvider({ children }) {
       return undefined;
     }
     const push = async () => {
-      const { lat, lng, hasFix } = liveRef.current;
-      const withFix = hasFix && lat != null && lng != null;
+      // `located`, not `hasFix`: a coordinate cached from an earlier session must
+      // not be published as this driver's live position once the OS permission
+      // is gone. The sender would ring them for a place they left hours ago.
+      const { lat, lng, located } = liveRef.current;
+      const withFix = located && lat != null && lng != null;
       const res = await publishDriverOnlineLocation(supabase, driverId, withFix ? lat : null, withFix ? lng : null, true);
       if (!res?.ok) console.warn('[DriverOffers] publish location failed', res?.error || 'unknown');
       else if (!withFix) console.info('[DriverOffers] published online with no fix yet');
@@ -214,6 +217,15 @@ export function DriverOffersProvider({ children }) {
     const last = { key: '', at: 0 };
     const goToOffer = (detail) => {
       if (!detail) return;
+      // The Permissions panel's sample offer (IngoPermissionsPlugin.sendTestOffer)
+      // names no order. A tap on it just brings the app up.
+      if (String(detail.offerKey || '') === 'test' || String(detail.tag || '') === 'ingo-offer-test') {
+        // Its Accept / Decline carry no order, so the only honest response is to
+        // clear the notification; a real one is withdrawn after the action runs.
+        console.info(`[DriverOffers] test offer ${detail.action || 'tapped'}; nothing to route`);
+        withdrawOfferNotification('ingo-offer-test');
+        return;
+      }
       const key = `${detail.tag || detail.offerKey || detail.link || ''}|${detail.action || ''}`;
       const now = Date.now();
       if (key === last.key && now - last.at < 3000) return;
@@ -326,8 +338,19 @@ export function DriverOffersProvider({ children }) {
   const syncRingsToOpenOffers = useCallback(
     (openKeys) => {
       const open = openKeys instanceof Set ? openKeys : new Set(openKeys || []);
-      for (const key of [...activeRingKeysRef.current]) {
-        if (!open.has(key)) stopRingForKey(key);
+      // Every ring that is sounding, not only the ones this provider started: a
+      // push (driverPush.js → notifyDriverNewOffer) starts its own loop under the
+      // same key, and when the offer then vanished because another device or
+      // the customer answered it, that loop was never in activeRingKeysRef and
+      // rang on for its full two minutes ("the sound keeps ringing after the
+      // order was closed", a real phone, 2026-09-06). The shade's copy of the
+      // notification goes too: its buttons would only answer "no longer open".
+      const sounding = new Set([...activeRingKeysRef.current, ...getActiveDriverOfferRingKeys()]);
+      for (const key of sounding) {
+        if (!open.has(key)) {
+          stopRingForKey(key);
+          withdrawOfferNotification(`ingo-offer-${key}`);
+        }
       }
     },
     [stopRingForKey],

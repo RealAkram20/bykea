@@ -1,0 +1,126 @@
+/* Shared answer bar for an offer: Decline · Bid higher · Accept. Tokens from src/index.css. */
+
+.ofa {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ingo-space-2, 0.5rem);
+}
+
+.ofa__row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: var(--ingo-space-2, 0.5rem);
+}
+
+.ofa__row--three {
+  grid-template-columns: 1fr 1fr 1.4fr;
+}
+
+.ofa__btn {
+  min-height: 52px;
+  padding: 0.7rem 0.6rem;
+  border-radius: var(--ingo-radius, 14px);
+  border: 2px solid transparent;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.1;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ofa__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ofa__btn:focus-visible,
+.ofa__bidInput:focus-visible {
+  outline: none;
+  box-shadow: var(--ingo-focus, 0 0 0 3px rgba(10, 88, 166, 0.35));
+}
+
+.ofa__btn--accept {
+  background: var(--ingo-success, #1a8f4a);
+  color: #fff;
+}
+
+.ofa__btn--bid {
+  background: var(--ingo-surface, #fff);
+  border-color: var(--ingo-secondary, #0a58a6);
+  color: var(--ingo-secondary, #0a58a6);
+}
+
+.ofa__btn--decline {
+  background: var(--ingo-surface, #fff);
+  border-color: var(--ingo-danger, #d33a2f);
+  color: var(--ingo-danger, #d33a2f);
+}
+
+.ofa__btn--send {
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+  background: var(--ingo-secondary, #0a58a6);
+  color: #fff;
+}
+
+.ofa__btn--ghost {
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+  background: transparent;
+  border-color: var(--ingo-border, #e2e7ef);
+  color: var(--ingo-text, #1a1a1a);
+}
+
+.ofa__bid {
+  padding: 0.75rem;
+  border: 1px solid var(--ingo-border, #e2e7ef);
+  border-radius: var(--ingo-radius, 14px);
+  background: var(--ingo-surface-alt, #f4f6fa);
+}
+
+.ofa__bidLbl {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ingo-muted, #5b6472);
+}
+
+.ofa__bidRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--ingo-space-2, 0.5rem);
+  align-items: center;
+}
+
+.ofa__bidInput {
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ingo-border, #e2e7ef);
+  border-radius: 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ingo-text, #1a1a1a);
+  background: var(--ingo-surface, #fff);
+}
+
+.ofa__note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--ingo-muted, #5b6472);
+}
+
+@media (max-width: 360px) {
+  .ofa__row--three {
+    grid-template-columns: 1fr 1fr;
+  }
+  .ofa__row--three .ofa__btn--accept {
+    grid-column: 1 / -1;
+  }
+}

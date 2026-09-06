@@ -6,6 +6,12 @@ import {
   isReliableGpsLatLng,
 } from '../lib/googleMapsConfig';
 import { whenMedianGeolocationReady } from '../lib/medianGeolocation';
+import {
+  getLocationPermission,
+  isNativeApp,
+  requestLocationPermission,
+  watchNativePosition,
+} from '../lib/nativePermissions';
 
 const GEO_LOG = '[geolocation]';
 
@@ -98,6 +104,16 @@ export function useLiveLocation(options = {}) {
   });
   const [headingDeg, setHeadingDeg] = useState(null);
   const [geoError, setGeoError] = useState(null);
+  /* Bumped when the driver grants location from the Allow button, so the native
+     watch (which waits for the permission rather than prompting on mount) starts. */
+  const [watchEpoch, setWatchEpoch] = useState(0);
+  /* The OS permission as last read: 'granted' | 'coarse' | 'prompt' | 'denied' |
+     'unknown', or null before the first read. On the native app this — not a
+     cached coordinate — decides whether the driver must be asked. A fix cached
+     from an earlier session used to count as "located" even after the permission
+     had been revoked, so the prompt never came back (seen 2026-09-06). */
+  const [permission, setPermission] = useState(null);
+  const permissionRef = useRef(null);
   const lastMapTick = useRef(0); /* 0 => first fix always updates map center */
   const lastPublishedMapCenterRef = useRef(null);
   const gpsHeadingRef = useRef(null);
@@ -147,8 +163,28 @@ export function useLiveLocation(options = {}) {
     [throttleMs, movePublishM],
   );
 
+  /**
+   * Re-reads the OS permission. When it turns into a grant (the driver said yes
+   * in the dialog, or came back from Settings) the native watch is started and a
+   * fix is fetched without another tap.
+   */
+  const refreshPermission = useCallback(async () => {
+    const next = await getLocationPermission();
+    const prev = permissionRef.current;
+    permissionRef.current = next;
+    setPermission(next);
+    const usable = (p) => p === 'granted' || p === 'coarse';
+    if (isNativeApp() && usable(next) && !usable(prev)) {
+      setWatchEpoch((n) => n + 1);
+      readDeviceGpsPosition()
+        .then((pos) => ingestPosition(pos, { forceMapUpdate: true }))
+        .catch(() => {});
+    }
+    return next;
+  }, [ingestPosition]);
+
   const refreshFromUserGesture = useCallback(async () => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    if (!isNativeApp() && (typeof navigator === 'undefined' || !navigator.geolocation)) {
       const e = new Error('unsupported');
       e.code = 0;
       setGeoError('unsupported');
@@ -159,6 +195,16 @@ export function useLiveLocation(options = {}) {
     }
     const run = (async () => {
       try {
+        if (isNativeApp()) {
+          // Ask first, and the moment the answer is yes start the continuous watch
+          // in parallel with the one-shot read below. A handset without a network
+          // fix (the emulator; some phones indoors) times the low-power read out
+          // before GPS is even asked; the watch has a fix by then. First one wins.
+          const perm = await requestLocationPermission();
+          permissionRef.current = perm;
+          setPermission(perm);
+          if (perm === 'granted' || perm === 'coarse') setWatchEpoch((n) => n + 1);
+        }
         const pos = await readDeviceGpsPosition({ interactive: true });
         const ok = ingestPosition(pos, { forceMapUpdate: true });
         if (!ok) {
@@ -168,6 +214,7 @@ export function useLiveLocation(options = {}) {
           throw e;
         }
         setGeoError(null);
+        setWatchEpoch((n) => n + 1);
         return pos.coords;
       } catch (err) {
         const code = typeof err?.code === 'number' ? err.code : 2;
@@ -178,21 +225,67 @@ export function useLiveLocation(options = {}) {
         throw err;
       } finally {
         refreshInFlightRef.current = null;
+        // Whatever happened in the dialog, the permission row must say it.
+        getLocationPermission()
+          .then((p) => {
+            permissionRef.current = p;
+            setPermission(p);
+          })
+          .catch(() => {});
       }
     })();
     refreshInFlightRef.current = run;
     return run;
   }, [ingestPosition]);
 
+  /** Permission on mount and whenever the app comes back to the foreground. */
   useEffect(() => {
-    if (!navigator.geolocation) {
+    let cancelled = false;
+    const read = () => {
+      if (!cancelled) refreshPermission().catch(() => {});
+    };
+    read();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') read();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refreshPermission]);
+
+  useEffect(() => {
+    if (!navigator.geolocation && !isNativeApp()) {
       setGeoError('unsupported');
       return undefined;
     }
     let cancelled = false;
     let watchId = null;
+    let nativeWatch = null;
     (async () => {
       try {
+        if (isNativeApp()) {
+          // Start only once the permission exists. The plugin would otherwise raise
+          // the OS dialog on mount; the Allow button is where that belongs, and it
+          // bumps watchEpoch so this effect runs again afterwards.
+          const perm = await getLocationPermission();
+          if (cancelled || (perm !== 'granted' && perm !== 'coarse')) return;
+          nativeWatch = await watchNativePosition(
+            { highAccuracy: true, timeoutMs: 25_000, maximumAgeMs: 15_000 },
+            (pos) => ingestPosition(pos, { forceMapUpdate: false }),
+            (err) => {
+              console.error(`${GEO_LOG} native watchPosition error`, { code: err.code, message: err.message });
+              setGeoError((prev) => {
+                if (prev === 'denied') return prev;
+                return err.code === 1 ? 'denied' : prev || 'unavailable';
+              });
+            },
+          );
+          if (cancelled) nativeWatch.clear();
+          console.log(`${GEO_LOG} native watchPosition started`);
+          return;
+        }
         await whenMedianGeolocationReady();
         if (cancelled || !navigator.geolocation) return;
         watchId = navigator.geolocation.watchPosition(
@@ -225,8 +318,9 @@ export function useLiveLocation(options = {}) {
     return () => {
       cancelled = true;
       if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      if (nativeWatch) nativeWatch.clear();
     };
-  }, [ingestPosition]);
+  }, [ingestPosition, watchEpoch]);
 
   /** Soft background refresh only — never compete with the Allow-location button. */
   useEffect(() => {
@@ -304,6 +398,13 @@ export function useLiveLocation(options = {}) {
     return () => window.removeEventListener('deviceorientation', onOrient, true);
   }, []);
 
+  const hasFix = lat != null && lng != null;
+  // Native: the OS decides, not a cached coordinate. Web: the browser prompts on
+  // first use, so "needs permission" is only ever a known refusal.
+  const needsPermission = isNativeApp()
+    ? permission != null && permission !== 'granted' && permission !== 'coarse'
+    : permission === 'denied';
+
   return {
     lat,
     lng,
@@ -311,7 +412,17 @@ export function useLiveLocation(options = {}) {
     mapCenter,
     headingDeg,
     geoError,
-    hasFix: lat != null && lng != null,
+    hasFix,
+    permission,
+    needsPermission,
+    /**
+     * A real position this app may use right now: a fix, and the right to have
+     * it. On native that right is unknown until the first permission read, so a
+     * coordinate seeded from the cache is not "located" until then; the offers
+     * provider publishes on mount, and used to publish that cached point once.
+     */
+    located: hasFix && !needsPermission && (!isNativeApp() || permission != null),
     refreshFromUserGesture,
+    refreshPermission,
   };
 }

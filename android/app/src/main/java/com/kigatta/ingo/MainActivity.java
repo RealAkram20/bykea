@@ -27,6 +27,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Must precede super.onCreate: Capacitor loads its plugin list there.
+        registerPlugin(IngoPermissionsPlugin.class);
         super.onCreate(savedInstanceState);
         applyLockScreenPolicy(getIntent());
     }

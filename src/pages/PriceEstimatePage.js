@@ -114,26 +114,37 @@ function parseDistanceKm(raw) {
   return null;
 }
 
+/**
+ * Used only when the route could not be measured at all (both geocoders failed).
+ * The page says so out loud rather than pricing silently: an invented distance
+ * once reached a real order as "Stratford, London E15 · 4.2 km" (2026-09-06).
+ */
+const ASSUMED_KM_WHEN_UNMEASURED = 4.2;
+
 function resolveAddresses(state, fallbackKm) {
-  const from = (state && state.pickup) || 'Stratford, London E15';
+  // No placeholder addresses. A missing pickup or drop-off sends the customer
+  // back to the form (see the redirect effect in the page); it never becomes an
+  // order with a London street on it.
+  const from = String((state && state.pickup) || '').trim();
   const stops = state?.stops;
   const last = Array.isArray(stops) && stops.length ? stops[stops.length - 1] : null;
-  const to =
-    (last && (last.value || last.address)) || (state && state.to) || 'Oxford Street, London W1';
+  const to = String((last && (last.value || last.address)) || (state && state.to) || '').trim();
   const dRaw = state?.distanceKm;
   const parsed = parseDistanceKm(dRaw);
-  const km = parsed != null ? parsed : fallbackKm != null && fallbackKm > 0 ? fallbackKm : 4.2;
+  const measuredKm = parsed != null ? parsed : fallbackKm != null && fallbackKm > 0 ? fallbackKm : null;
+  const distanceKnown = measuredKm != null && measuredKm > 0;
+  const km = distanceKnown ? measuredKm : ASSUMED_KM_WHEN_UNMEASURED;
   let distance;
-  if (typeof dRaw === 'number' && Number.isFinite(dRaw)) {
+  if (typeof dRaw === 'number' && Number.isFinite(dRaw) && dRaw > 0) {
     distance = `${(Math.round(dRaw * 10) / 10).toFixed(1)} km`;
   } else if (typeof dRaw === 'string' && dRaw.trim()) {
     distance = dRaw.trim();
   } else if (fallbackKm != null && fallbackKm > 0) {
     distance = `${(Math.round(fallbackKm * 10) / 10).toFixed(1)} km`;
   } else {
-    distance = '4.2 km';
+    distance = `about ${ASSUMED_KM_WHEN_UNMEASURED} km (not measured)`;
   }
-  return { from, to, distance, km };
+  return { from, to, distance, km, distanceKnown };
 }
 
 export default function PriceEstimatePage() {
@@ -203,10 +214,17 @@ export default function PriceEstimatePage() {
     };
   }, [navState]);
 
-  const { from, to, distance, km } = useMemo(
+  const { from, to, distance, km, distanceKnown } = useMemo(
     () => resolveAddresses(navState, fallbackRouteKm),
     [navState, fallbackRouteKm],
   );
+
+  // Reached without addresses (a reload, a stale link, a back-button dance):
+  // go back to the form instead of quoting a placeholder route.
+  const routeMissing = !from || !to;
+  useEffect(() => {
+    if (routeMissing) navigate('/request-delivery', { replace: true });
+  }, [routeMissing, navigate]);
   const deliverySvc = useMemo(() => deliveryPricingServiceTypeFromPackage(navState), [navState]);
 
   const [ratesLoaded, setRatesLoaded] = useState(false);
@@ -255,7 +273,11 @@ export default function PriceEstimatePage() {
   }, [durationMins]);
   const distanceFee = useMemo(() => km * pricePerKm, [km, pricePerKm]);
   const timeFee = useMemo(() => billableMins * pricePerMinute, [billableMins, pricePerMinute]);
-  const total = baseFare + distanceFee + timeFee + serviceFee;
+  // To the cent, once, here: this figure becomes `minimum_fare_amount` and the
+  // floor every bid is checked against. Before 2026-09-06 the raw sum (e.g.
+  // 4.31495) was stored, the screen showed "$4.31", and a driver's 4.31 was then
+  // judged against 4.31495.
+  const total = Math.round((baseFare + distanceFee + timeFee + serviceFee + Number.EPSILON) * 100) / 100;
   const minimumFare = total;
   const offerAmount = customerOffer != null && customerOffer >= minimumFare ? customerOffer : minimumFare;
   const totalLabel = ratesLoaded ? formatPe(offerAmount) : '…';
@@ -375,6 +397,15 @@ export default function PriceEstimatePage() {
             <span className="br-pe-distance__lab">Distance</span>
             <span className="br-pe-distance__val">{distance}</span>
           </p>
+          {!distanceKnown ? (
+            <p className="br-pe-distance" role="note" style={{ color: 'var(--ingo-warning, #b45309)' }}>
+              <span className="br-pe-distance__lab">Note</span>
+              <span className="br-pe-distance__val">
+                We could not measure this route, so the price assumes {ASSUMED_KM_WHEN_UNMEASURED} km. Check
+                both addresses if that looks wrong.
+              </span>
+            </p>
+          ) : null}
           <p className="br-pe-distance">
             <span className="br-pe-distance__lab">Est. duration</span>
             <span className="br-pe-distance__val">{durationLabel}</span>
