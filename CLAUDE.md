@@ -81,19 +81,32 @@ agent needs goes in `AGENTS.md`, not here.
 - **1 test file** for ~59k lines. Assume no safety net.
 - **Do not confuse this with `d:\xampp\htdocs\ingo`** — that is Rio's own
   Laravel fleet log. Same brand, different product, different owner.
-- **`android/` and `capacitor.config.json` are a local spike, not the shipped
-  apps.** Created 2026-08-30 to measure and test. The Android and iOS apps on the
-  stores were built elsewhere and **their source is not in this repository.**
-  Anything changed under `android/` must be re-applied wherever the store builds
-  are actually produced, or it ships to nobody.
-  **2026-09-04, Rio: "I have access to it."** So re-applying the `android/` work
-  (ADR 0002 / 0003) is Rio's to do, not a handover to KIGATTA's developer as
-  previously recorded. **The location is still not written down anywhere**, and a
-  search found none: `KIGATTA-INVESTMENTS` exposes only `bykea`, `Ingo-app` is a
-  mirror of this repo, `d:\xampp\htdocs\ingo-release` is the Laravel product.
-  Record the location here before the next `android/` change, and note which kind
-  of access it is — the source, the Play / App Store console, or the builder —
-  because each implies different work.
+- **`android/` is the Android app that ships.** It began 2026-08-30 as a local
+  Capacitor spike (the store apps had been built elsewhere, source unknown). Two
+  things changed that: **PR #1 was merged into `KIGATTA-INVESTMENTS/bykea` on
+  2026-09-04 (10:43 UTC)**, so the client's `master` now carries `android/`,
+  `AGENTS.md` and `capacitor.config.json`; and on **2026-09-05 Rio decided the
+  Play update is built from this repo, on this machine**, with Rio's own access
+  to the Firebase console for `ingo-92d5f` and to Play Console. The step-by-step
+  is `docs/release-android.md`. **From Play Console, 2026-09-05:** one bundle
+  ever uploaded, `versionCode 1 (1.0)`, target SDK 35, first published
+  **2026-05-20**, live in Production. Play is blocking all updates until a
+  bundle targets API 36 (this repo's does). Published after August 2021, so
+  **Play App Signing is on** and a lost upload key is recoverable by reset.
+  **2026-09-06:** the listing's package is **`com.world.fi.ingo`** (468 installs;
+  a second listing `zw.co.ingo` is unpublished). `applicationId` is now that;
+  namespace and Java package stay `com.kigatta.ingo`. Rio registered
+  `com.world.fi.ingo` in Firebase `ingo-92d5f` the same night. **Still
+  unrecorded:** the upload key's SHA-1 from Setup → App integrity (the first
+  upload answers it), and what the version-1 APK on Play contains.
+  **iOS is still elsewhere:** no `ios/` project exists in this repo.
+- **`docs/system-map.md` is the app's own architecture document** (2026-09-06),
+  written for the client's repo after Rio asked "how did we get to supabase, I
+  thought we are using firebase". Keep it current; it is what stops that
+  question from costing a release.
+- **`.env.local` poisons a store build.** It points at the throwaway Supabase
+  project and CRA reads it for `npm run build` too. Rename it away before any
+  release build; `docs/release-android.md` §2 and §3 have the guard.
 - **Driver push: the channel id is duplicated and unchecked.**
   `DRIVER_OFFER_CHANNEL_ID` in `src/lib/driverPush.js` must equal
   `android.notification.channel_id` in
