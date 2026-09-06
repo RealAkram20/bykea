@@ -2062,6 +2062,21 @@ AAB is byte-identical to `build/` and carries the "Map paused" text.
 `InGo v1.1.6.apk` / `.aab` on Rio's Desktop, APK sent. Website deployed from
 the same `build/`; the live index serves `main.9942591e.js`, byte-identical.
 **Not verified:** the placeholder on a phone with data switched off (the
-emulator's airplane mode would do; not run). Nothing committed.
+emulator's airplane mode would do; not run).
 
 **Status:** complete
+
+### 22:50 — committed, tagged, pushed, handed over
+
+Rio: "push to git and also push to the kigatta". Secret scan over the 110
+files first (only documentation mentions and the throwaway seed password
+that was already in the docs). Two commits on `master`: `754626b` with
+everything, `fdf0aa6` with `CLAUDE.md` alone; tag `android-v1.1.6` on the
+first; pushed to `origin` (the fork had been at the original developer's
+`42a49e5` since August). For KIGATTA: `kigatta-handover` reset to
+`upstream/master` and `754626b` cherry-picked onto it (no `CLAUDE.md`; the
+tree is master minus that file), pushed as `kigatta-handover-v1.1.6` (a new
+name; the auto-mode classifier refused a force push over the old branch),
+**PR #2** opened on `KIGATTA-INVESTMENTS/bykea`:
+https://github.com/KIGATTA-INVESTMENTS/bykea/pull/2. Working tree clean on
+`master`.

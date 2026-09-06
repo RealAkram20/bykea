@@ -124,7 +124,7 @@ precondition.
 
 | Step | State |
 |---|---|
-| 1–6 | 2–6 done for **v1.1.6 (versionCode 8)**: `InGo v1.1.6.aab` and `InGo v1.1.6.apk` on Rio's Desktop, built 22:35 (everything in v1.1.5 plus: the map frame shows "Map paused" while offline and reloads itself when the connection returns). v1.1.0–v1.1.5 were never uploaded; do not upload them. Step 1 (commit and tag) is not done |
+| 1–6 | 2–6 done for **v1.1.6 (versionCode 8)**: `InGo v1.1.6.aab` and `InGo v1.1.6.apk` on Rio's Desktop, built 22:35 (everything in v1.1.5 plus: the map frame shows "Map paused" while offline and reloads itself when the connection returns). v1.1.0–v1.1.5 were never uploaded; do not upload them. Step 1 done: `754626b` on the fork's `master`, tag `android-v1.1.6`, PR #2 to KIGATTA |
 | 7 | done on the emulator, every path, on `com.kigatta.ingo` |
 | 8 | **open** — the version-1 APK has not been inspected |
 | 9 | **done 22:38** — `main.9942591e.js` live, byte-identical to the bundle inside `InGo v1.1.6.apk` / `.aab` (earlier today: 01:45, 04:00, 17:05, 17:58, 19:12, 21:33, 22:14; each deploy matched the APK of its hour) |
