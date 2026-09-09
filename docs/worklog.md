@@ -2080,3 +2080,27 @@ name; the auto-mode classifier refused a force push over the old branch),
 **PR #2** opened on `KIGATTA-INVESTMENTS/bykea`:
 https://github.com/KIGATTA-INVESTMENTS/bykea/pull/2. Working tree clean on
 `master`.
+
+## 2026-09-09 — Play rejects the upload key; the one unknown left from 09-05 is answered
+
+Rio uploaded `InGo v1.1.6.aab` to Play Console: "signed with the wrong key.
+Expected SHA1 `66:20:0F:B9:86:89:A0:D4:83:39:F7:20:AA:AB:07:9C:D3:EA:7D:D5`,
+uploaded `76:1B:9D:40:3C:FF:D4:01:06:73:EE:05:41:6D:22:8A:6F:5E:4B:D8`."
+The registered upload certificate is the original developer's; the key
+generated here on 09-05 is not it, and nobody here holds theirs. Exactly the
+case `docs/release-android.md` §0.3 anticipated. Checked: the bundle is
+signed by our key (`CN=InGo, OU=Mobile, O=KIGATTA INVESTMENTS`, SHA-1
+`76:1B…`) and `android/ingo-upload-cert.pem` is that key's certificate, valid
+to 2054 — the file the reset form takes.
+
+**Two ways out, either works, nothing is lost** (Play App Signing is on):
+1. Play Console → Setup → App integrity → App signing → *Request upload key
+   reset* → upload `android/ingo-upload-cert.pem`. Google verifies and then
+   accepts the new key after their notice period (historically about two
+   working days). Every bundle built here afterwards uploads unchanged.
+2. Get the original upload keystore (SHA-1 `66:20:0F…`) and its passwords
+   from whoever built version 1, put it at `android/ingo-upload.jks` with the
+   passwords in `android/keystore.properties`, rebuild, upload today.
+
+Recorded in `docs/system-map.md` §5 and §13 and `docs/deployment.md` §0. No
+code change; no rebuild needed until a key is accepted.

@@ -97,9 +97,15 @@ repo (`main.9942591e.js`, byte-identical to the bundle inside `InGo v1.1.6`). Wh
   receive push from this project.
 - **Signing:** Play App Signing is on (the app was created after August 2021).
   An upload key was generated on 2026-09-05 (`android/ingo-upload.jks`, SHA-1
-  `76:1B:9D:40:3C:FF:D4:01:06:73:EE:05:41:6D:22:8A:6F:5E:4B:D8`). Whether it
-  matches the upload certificate registered in Play Console is **unknown**;
-  the first upload tells you, and a mismatch is fixed with an upload key reset.
+  `76:1B:9D:40:3C:FF:D4:01:06:73:EE:05:41:6D:22:8A:6F:5E:4B:D8`). **It does
+  not match** (Play Console, 2026-09-09): the upload certificate registered
+  for `com.world.fi.ingo` is
+  `66:20:0F:B9:86:89:A0:D4:83:39:F7:20:AA:AB:07:9C:D3:EA:7D:D5`, the original
+  developer's key, which nobody here holds. Fix: Setup → App integrity → App
+  signing → **Request upload key reset**, uploading
+  `android/ingo-upload-cert.pem` (the certificate of the key here); Google
+  processes it and the new key is accepted after their notice period. Or
+  obtain the original upload keystore from whoever built version 1.
 - **iOS:** no `ios/` project in this repository. Where the iOS app came from is
   **unknown**.
 
@@ -209,5 +215,8 @@ release build; `docs/release-android.md` has the guard.
   `driver_live_tracking.sql`.
 - Whether a custom domain points at the hosted site.
 - Where the iOS app was built and what it talks to.
-- Whether the upload key generated here matches the one Play expects.
+- ~~Whether the upload key generated here matches the one Play expects.~~
+  **Known 2026-09-09: it does not** (§5). Upload key reset requested with
+  `android/ingo-upload-cert.pem`, or the original keystore obtained; until
+  one of those lands, no bundle from this repo can be uploaded.
 - Commercial terms and who at KIGATTA signs off a release.
