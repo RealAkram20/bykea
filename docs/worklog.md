@@ -2104,3 +2104,21 @@ to 2054 — the file the reset form takes.
 
 Recorded in `docs/system-map.md` §5 and §13 and `docs/deployment.md` §0. No
 code change; no rebuild needed until a key is accepted.
+
+**2026-09-10 — reset requested; the app signing key is Google's.** Rio found
+the page (Play Console → App integrity → **App signing**, not the Play
+Integrity tab next to it) and submitted the reset: it now reads "There is a
+pending request for resetting the upload key of this app". Do not cancel it.
+The certificate to attach is `android/ingo-upload-cert.pem`, also copied to
+Rio's Desktop as `InGo-upload-key-certificate.pem`.
+
+Also read on that page, and it is good news: the **app signing key** is
+`CN=Android, OU=Android, O=Google Inc.`, valid 2026-05-20 to 2056 (SHA-256
+`32:29:F4:AA:…:B9:01`, matching the page's Digital Asset Links block). Play
+generated it when version 1 was published, so Google holds it and it cannot
+be lost by anyone; only the *upload* key was ever at risk, and that is what
+is being reset. The install base on that key is 100%.
+
+**When Google accepts:** the Upload key certificate on the App signing page
+changes from `66:20:0F…` to `76:1B:9D:40…`, and `InGo v1.1.6.aab` uploads
+unchanged. Nothing to rebuild.
