@@ -2119,6 +2119,15 @@ generated it when version 1 was published, so Google holds it and it cannot
 be lost by anyone; only the *upload* key was ever at risk, and that is what
 is being reset. The install base on that key is 100%.
 
-**When Google accepts:** the Upload key certificate on the App signing page
-changes from `66:20:0F…` to `76:1B:9D:40…`, and `InGo v1.1.6.aab` uploads
-unchanged. Nothing to rebuild.
+**Accepted the same day.** Google's email: "We've received a request to reset
+your upload key for InGo (com.world.fi.ingo). The new upload key will become
+valid on **Sep 11, 2026 at 10:31 PM UTC**. Until the new upload key becomes
+valid, you can't upload any new app bundles or APKs." The fingerprint it
+names is `76:1B:9D:40:3C:FF:D4:01:06:73:EE:05:41:6D:22:8A:6F:5E:4B:D8` —
+this repo's key, so the right certificate was filed (MD5 `D9:E4:53:0C:DB:88:
+AD:9B:2F:0B:45:4B:D3:47:9A:D7`).
+
+So the Play upload is a **wait, not a task**: 2026-09-11 22:31 UTC, which is
+2026-09-12 01:31 in Kampala. Nothing to rebuild, no version bump — the same
+`InGo v1.1.6.aab` uploads afterwards. Recorded in `docs/system-map.md` §5 and
+§13 and `docs/deployment.md` §0 and the release table.

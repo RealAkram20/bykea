@@ -101,11 +101,13 @@ repo (`main.9942591e.js`, byte-identical to the bundle inside `InGo v1.1.6`). Wh
   not match** (Play Console, 2026-09-09): the upload certificate registered
   for `com.world.fi.ingo` is
   `66:20:0F:B9:86:89:A0:D4:83:39:F7:20:AA:AB:07:9C:D3:EA:7D:D5`, the original
-  developer's key, which nobody here holds. **Reset requested 2026-09-10 and
-  pending in Play Console** ("There is a pending request for resetting the
-  upload key of this app"); when Google accepts it the Upload key certificate
-  on that page becomes `76:1B:9D:40:…:4B:D8` and bundles built here upload
-  unchanged. Do not cancel the request. Fix: Setup → App integrity → App
+  developer's key, which nobody here holds. **Reset requested and accepted
+  2026-09-10; the key here becomes the registered upload key on 2026-09-11 at
+  22:31 UTC** (2026-09-12, 01:31 EAT). Google's email names the new
+  fingerprint as `76:1B:9D:40:…:4B:D8`, which is this repo's key, so the right
+  certificate was filed. **No bundle or APK can be uploaded to this listing
+  until that moment**, by anyone, with any key; afterwards `InGo v1.1.6.aab`
+  uploads unchanged. How it was done: Setup → App integrity → App
   signing → **Request upload key reset**, uploading
   `android/ingo-upload-cert.pem` (the certificate of the key here); Google
   processes it and the new key is accepted after their notice period. Or
